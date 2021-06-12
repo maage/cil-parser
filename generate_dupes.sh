@@ -2,14 +2,6 @@
 
 set -epu -o pipefail
 
-if [ ! -f sums.txt ]; then
-    for a in tmp/*.cil;do
-        grep -v cil_gen_require "$a" | sort -u > "$a".tosum || :
-    done
-    sha256sum tmp/*.tosum > sums.txt
-    sha256sum tmp/*.tosum | awk '{print $1}' | sort | uniq -c | egrep -v ' 1 ' | awk '{print $2}' > dupes.txt
-fi
-
 get_te() {
     local a f te
     echo "# dupes"
@@ -36,7 +28,7 @@ while read -r sum f; do
     fi
     dupefiles+=("$f")
     cursum="$sum"
-done < <(fgrep -f dupes.txt sums.txt|sort)
+done < <(grep -Ff tmp/dupes.txt tmp/sums.txt|sort)
 if [ "$cursum" ]; then
     get_te "${dupefiles[@]}"
 fi

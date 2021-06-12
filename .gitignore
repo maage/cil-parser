@@ -8,7 +8,7 @@ test/test*.cil
 test/local_*.cil
 test/local_*.log
 tmp/
-local_lines/
-status_locals.report.txt
+split_lines/
+status.txt
 dupes.txt
 sums.txt
