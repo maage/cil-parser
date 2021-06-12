@@ -9,13 +9,28 @@
 DIR="$(readlink -f -- "$1")"
 SEMODULE=(semodule -p "$DIR")
 
-rmfiles=()
-args=()
-for a in $("${SEMODULE[@]}" -l); do
-    rmfiles+=("$a".cil)
-    args+=(--cil --extract="$a")
-done
 mkdir -p export
 cd export
-rm -f -- "${rmfiles[@]}"
+
+oldfiles=()
+args=()
+for a in $("${SEMODULE[@]}" -l); do
+    if [ -f "$a".cil ]; then
+        oldfiles+=("$a".cil)
+        mv -- "$a".cil "$a".cil.old
+    fi
+    args+=(--cil --extract="$a")
+done
 "${SEMODULE[@]}" "${args[@]}"
+olddel=()
+for a in "${oldfiles[@]}"; do
+    if [ -f "$a" ] && cmp -s "$a".old "$a"; then
+        # Use old file if no change
+        mv -- "$a".old "$a"
+    else
+        olddel+=("$a".old)
+    fi
+done
+if (( ${#olddel[@]} )); then
+    rm -f -- "${olddel[@]}"
+fi
