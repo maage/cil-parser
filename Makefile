@@ -61,7 +61,7 @@ tmp/sums.txt: $(cil_sums)
 	sha256sum $(cil_sums) > $@.tmp && mv $@.tmp $@
 
 status.txt: $(split_lines_log)
-	./generate_status.sh > $@.tmp && mv $@.tmp $@
+	./generate_status.sh $(split_lines_log) > $@.tmp && mv $@.tmp $@
 
 dupes.txt: tmp/dupes.txt tmp/sums.txt
 	./generate_dupes.sh > $@.tmp && mv $@.tmp $@
