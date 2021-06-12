@@ -1,2 +1,2 @@
-# ciss-parser
+# cil-parser
 SELinux cil parser
