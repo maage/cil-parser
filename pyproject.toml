@@ -1,0 +1,19 @@
+[project]
+name = "cil-parser"
+version = "0.1"
+dependencies = [
+  "parsimonious",
+]
+
+[build-system]
+requires = [
+  "setuptools >= 35.0.2",
+  "setuptools_scm >= 2.0.0, <3"
+]
+build-backend = "setuptools.build_meta"
+
+[tool.mypy]
+
+[[tool.mypy.overrides]]
+module = "parsimonious.*"
+ignore_missing_imports = true
