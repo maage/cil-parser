@@ -1,0 +1,5 @@
+(booleanif (and (httpd_enable_cgi) (nis_enabled))
+    (true
+        (allow httpd_script_type net_conf_t (dir (ioctl read getattr lock open search)))
+    )
+)

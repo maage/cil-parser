@@ -1,0 +1,5 @@
+policy_module(test1, 1.0.0)
+require {
+	type ssh_t;
+}
+kerberos_read_keytab(ssh_t)

@@ -1,0 +1,8 @@
+(booleanif (abrt_upload_watch_anon_write)
+    (true
+        (allow abrt_upload_watch_t public_content_rw_t (lnk_file (ioctl read write create getattr setattr lock append unlink link rename watch watch_reads)))
+    )
+    (false
+        (allow abrt_upload_watch_t public_content_rw_t (dir (ioctl read write getattr lock open add_name remove_name search)))
+    )
+)

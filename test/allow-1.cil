@@ -1,0 +1,1 @@
+(allow abrt_var_log_t tmp_t (filesystem (associate)))

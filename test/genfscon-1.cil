@@ -1,0 +1,1 @@
+(genfscon 9p / (system_u object_r nfs_t ((s0) (s0))))

@@ -1,0 +1,10 @@
+policy_module(test2, 1.0.0)
+
+require {
+        type systemd_logind_t;
+        type systemd_logind_var_run_t;
+        type systemd_unit_file_t;
+}
+manage_dirs_pattern({ systemd_logind_t }, systemd_logind_var_run_t, systemd_logind_var_run_t)
+manage_fifo_files_pattern({ systemd_logind_t }, systemd_logind_var_run_t, systemd_logind_var_run_t)
+manage_files_pattern({ systemd_logind_t }, systemd_logind_var_run_t, systemd_logind_var_run_t)

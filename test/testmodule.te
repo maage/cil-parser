@@ -1,0 +1,16 @@
+policy_module(testmodule, 1.0.0)
+
+require {
+	type bin_t;
+	type tmp_t;
+	class file { ioctl map };
+	class chr_file { ioctl map };
+}
+
+# hex conversion, numbers converted to hex
+# list expansion
+allowxperm bin_t tmp_t:chr_file ioctl { 21706-21707 34567 };
+allowxperm bin_t tmp_t:chr_file ioctl { 35092 12345 34569 };
+
+# all lists expansion, other than perm
+allow { bin_t tmp_t } { tmp_t bin_t }:{ chr_file file } { ioctl map };

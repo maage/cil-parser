@@ -1,0 +1,6 @@
+(typeattribute authlogin_typeattr_3)
+(typeattributeset authlogin_typeattr_3 (not (can_relabelto_shadow_passwords ) ))
+(typeattribute authlogin_typeattr_2)
+(typeattributeset authlogin_typeattr_2 (not (can_write_shadow_passwords ) ))
+(typeattribute authlogin_typeattr_1)
+(typeattributeset authlogin_typeattr_1 (not (can_read_shadow_passwords ) ))
