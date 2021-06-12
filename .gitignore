@@ -1,0 +1,14 @@
+*.egg-info/
+*.json
+*.pp
+.*.swp
+.tox/
+export/
+test/test*.cil
+test/local_*.cil
+test/local_*.log
+tmp/
+local_lines/
+status_locals.report.txt
+dupes.txt
+sums.txt
