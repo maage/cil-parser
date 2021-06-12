@@ -46,7 +46,14 @@ gen_require() {
     ) | sort -u
 }
 
+declare -A old_files=()
+outdel=()
+
 for a in "$@"; do
+    while IFS= read -d '' -r old && [ "$old" ]; do
+        old_files["$old"]=1
+    done < <(find "$D" -type f -name "$(basename -- "$a" .te)_*.te" -print0)
+
     (
 	    sed -rn '
 s/^[[:space:]]*//;
@@ -70,10 +77,10 @@ s/ alias /;\ntype /;
     state=line
     macrono=0
     macroskip=-1
-    outdel=()
 	while read -r line; do
 		(( lineno++ )) || :
         out="$D"/"$(basename -- "$a" .te)"_"$lineno".te
+        unset old_files["$out"]
 
         if [ ! "$line" ]; then
             outdel+=("$out")
@@ -99,7 +106,7 @@ s/ alias /;\ntype /;
                 if [[ "$line" =~ ^ifdef\(\`distro_redhat\',\`$ ]]; then
                     skip=1
                 else
-                    printf "error(%s:%d): %s\n" "$a" $lineno "$line"
+                    printf "error(%s:%d): %s\n" "$a" "$lineno" "$line"
                     exit 1
                 fi
             elif [[ "$line" =~ ^ifndef ]]; then
@@ -112,7 +119,7 @@ s/ alias /;\ntype /;
                     state=macroskip
                     macroskip=$(( macrono - 1 ))
                 else
-                    printf "error(%s:%d): %s\n" "$a" $lineno "$line"
+                    printf "error(%s:%d): %s\n" "$a" "$lineno" "$line"
                     exit 1
                 fi
                 skip=1
@@ -132,7 +139,7 @@ s/ alias /;\ntype /;
             elif [[ "$line" =~ ^(allow|auditallow|dontaudit|neverallow|allowxperm|auditallowxperm|dontauditxperm|neverallowxperm)\  ]]; then
                 :
             else
-                printf "error(%s:%d): %s\n" "$a" $lineno "$line"
+                printf "error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
         elif [ "$state" = require ]; then
@@ -161,16 +168,16 @@ s/ alias /;\ntype /;
         if [ "$requires" ]; then
             requires="$(printf "require {\n%s\n}\n" "$requires")"
         fi
-		printf "policy_module(%s_%d, 1.0.0)\n%s\n%s\n" "$(basename -- "$a" .te)" $lineno "$requires" "$line" > "$out".tmp
+		printf "policy_module(%s_%d, 1.0.0)\n%s\n%s\n" "$(basename -- "$a" .te)" "$lineno" "$requires" "$line" > "$out".tmp
         if [ ! -f "$out" ] || ! cmp -s "$out".tmp "$out"; then
             mv -- "$out".tmp "$out"
         else
             outdel+=("$out".tmp)
         fi
 	done < <(sed -r 's/^[[:space:]]*//;s/[[:space:]]*#.*//' "$a")
-    if (( ${#outdel[@]} )); then
-        rm -f -- "${outdel[@]}"
-    fi
 done
 
+if (( ${#outdel[@]} + ${#old_files[@]} )); then
+    rm -f -- "${outdel[@]}" "${!old_files[@]}"
+fi
 rm -f "$D"/tokens.txt "$D"/requires.txt
