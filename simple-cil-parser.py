@@ -12,6 +12,7 @@ from enum import (
 )
 import json
 import os
+import random
 
 from typing import (
     # cast,
@@ -121,6 +122,8 @@ QuadType = Union[Quad, bool]
 # type enforcement rule
 @dataclass
 class TERule:
+    file: str
+    string: str
     type: str
     source: str
     target: str
@@ -165,6 +168,10 @@ class CilSearcher:
         self.args = args
         self.update_args()
         self.filtered: DefaultDict[str, ParsedCil] = defaultdict(list)
+        self.tasets: Dict[str, TASet] = {}
+        self.te_rules: Dict[str, TERule] = {}
+        self.te_rule_tree: Dict[str, List[TERule]] = defaultdict(list)
+        self.typetransitions: Dict[str, Typetransition] = {}
         self.cil_from: Optional[ParsedCil] = None
 
     def update_args(self) -> None:
@@ -202,6 +209,14 @@ class CilSearcher:
     def load(self) -> None:
         file1: str
 
+        cache_file = 'tmp/_cache_filterd.json'
+        filtered_cache: Dict[str, List[Any]] = {}
+        rnd = random.Random()
+        filtered_cache_changed = False
+        if os.path.exists(cache_file):
+            with open(cache_file, 'r') as fd:
+                filtered_cache = json.load(fd)
+
         from_file = self.oargs['from']
         if from_file is not None:
             tree = grammar.parse(from_file.read())
@@ -209,6 +224,12 @@ class CilSearcher:
             self.cil_from = self.handle_file(cil_from)
 
         for file1 in self.args.files:
+            if self.file_nt(file1, cache_file):
+                if file1 in filtered_cache:
+                    self.filtered[file1].extend(filtered_cache[file1])
+                    continue
+
+            filtered_cache_changed = True
             queue = []
             # It is way faster to load json than parse cil
             if self.file_nt(file1, f'{file1}.json'):
@@ -219,10 +240,17 @@ class CilSearcher:
                 with open(file1, 'r') as fd:
                     tree = grammar.parse(fd.read())
                     queue = cilp.visit(tree)
-                    with open(f'{file1}.json.tmp', 'w') as out:
+                    tmp = f'{file1}.json.tmp.{rnd}'
+                    with open(tmp, 'w') as out:
                         json.dump(queue, out)
-                    os.replace(f'{file1}.json.tmp', f'{file1}.json')
+                    os.replace(tmp, f'{file1}.json')
             self.filtered[file1].extend(self.handle_file(queue))
+
+        if filtered_cache_changed:
+            tmp = f'{cache_file}.tmp.{rnd}'
+            with open(tmp, 'w') as out:
+                json.dump(self.filtered, out)
+            os.replace(tmp, cache_file)
 
     def handle_file(self, queue: List[Any]) -> ParsedCil:
         seen: set[str] = set()
@@ -277,7 +305,7 @@ class CilSearcher:
         return result
 
     @staticmethod
-    def create_terule(e: List[Union[str, List[Any]]]) -> TERule:
+    def create_terule(e: List[Union[str, List[Any]]], file: str) -> TERule:
         # Do first full assert of the type and then create Rule
         assert isinstance(e, list)
         assert len(e) == 4
@@ -289,7 +317,7 @@ class CilSearcher:
         assert isinstance(e[3][1], list)
         for _ in e[3][1]:
             assert isinstance(_, str)
-        return TERule(e[0], e[1], e[2], e[3][0], e[3][1])
+        return TERule(file, str(e), e[0], e[1], e[2], e[3][0], e[3][1])
 
     @staticmethod
     def create_taset(e: List[Union[str, List[Any]]]) -> TASet:
@@ -319,6 +347,13 @@ class CilSearcher:
         else:
             return Typetransition(e[1], e[2], e[3], e[4])
 
+    def setup(self) -> None:
+        if self.args.resolveattr:
+            return
+        if self.args.attr:
+            return
+        self.setup_terule_tree()
+
     def search(self) -> None:
         if self.cil_from is not None:
             self.search_from()
@@ -335,7 +370,7 @@ class CilSearcher:
             seen: set[str] = set()
             assert isinstance(e[0], str)
             if e[0] in type_enforcement_rule_types:
-                r: TERule = self.create_terule(e)
+                r: TERule = self.create_terule(e, 'cil_from')
                 self.oargs['type'] = r.type
                 self.oargs['source'] = r.source
                 self.oargs['target'] = r.target
@@ -343,14 +378,20 @@ class CilSearcher:
                 got_all = True
                 got_any = False
                 missing_perms = []
-                for perm in r.perms:
-                    self.oargs['perm'] = perm
-                    self.update_args()
-                    if self.search_terule(seen):
-                        got_any = True
-                    else:
-                        got_all = False
-                        missing_perms.append(perm)
+
+                # first query all
+                self.oargs['perm'] = r.perms
+                if self.search_terule(seen):
+                    got_any = True
+                else:
+                    for perm in r.perms:
+                        self.oargs['perm'] = perm
+                        self.update_args()
+                        if self.search_terule(seen):
+                            got_any = True
+                        else:
+                            got_all = False
+                            missing_perms.append(perm)
                 if got_all:
                     perms = " ".join(r.perms)
                     status = 'found'
@@ -393,28 +434,66 @@ class CilSearcher:
 
     def search_terule(self, seen: Optional[set[str]] = None) -> bool:
         found = False
+        if (
+            self.args.type is not None
+            and self.args.source is not None
+            and self.args.target is not None
+            and self.oargs['class'] is not None
+        ):
+            for source in self.vargs['source']:
+                for target in self.vargs['target']:
+                    trt_key = " ".join(
+                        (self.args.type, source, target, self.oargs['class'])
+                    )
+                    if trt_key in self.te_rule_tree:
+                        for r in self.te_rule_tree[trt_key]:
+                            if self.search_terule_one(r, seen):
+                                found = True
+            return found
+
+        for rules in self.filtered.values():
+            for e in rules:
+                if e[0] in type_enforcement_rule_types:
+                    e_str = str(e)
+                    if e_str in self.te_rules:
+                        r = self.te_rules[e_str]
+                        if self.search_terule_one(r, seen):
+                            found = True
+        return found
+
+    def setup_terule_tree(self) -> None:
         for file1, rules in self.filtered.items():
             for e in rules:
                 if e[0] in type_enforcement_rule_types:
-                    rule = self.create_terule(e)
-                    if not self.match_type_enforcement_rule(rule):
-                        continue
-                    found = True
-                    if seen is not None:
-                        # only show each entity once
-                        e_str = str(e)
-                        if e_str in seen:
-                            continue
-                        seen.add(e_str)
-                    print(f'{file1}:{e}')
-        return found
+                    e_str = str(e)
+                    r = self.te_rules.get(e_str, None)
+                    if r is None:
+                        r = self.create_terule(e, file1)
+                        self.te_rules[e_str] = r
+                        trt_key = " ".join((r.type, r.source, r.target, r.klass))
+                        self.te_rule_tree[trt_key].append(r)
+
+    def search_terule_one(self, r: TERule, seen: Optional[set[str]] = None) -> bool:
+        if not self.match_type_enforcement_rule(r):
+            return False
+        if seen is not None:
+            # only show each entity once
+            if r.string in seen:
+                return False
+            seen.add(r.string)
+        print(f'{r.file}:{r.string}')
+        return True
 
     def search_typetransition(self, seen: Optional[set[str]] = None) -> Quad:
         found = Quad.FALSE
         for file1, rules in self.filtered.items():
             for e in rules:
                 if e[0] == 'typetransition':
-                    r = self.create_typetransition(e)
+                    e_str = str(e)
+                    r = self.typetransitions.get(e_str, None)
+                    if r is None:
+                        r = self.create_typetransition(e)
+                        self.typetransitions[e_str] = r
                     q = self.match_typetransition(r)
                     if q == Quad.FALSE:
                         continue
@@ -424,7 +503,6 @@ class CilSearcher:
                         found = q
                     if seen is not None:
                         # only show each entity once
-                        e_str = str(e)
                         if e_str in seen:
                             continue
                         seen.add(e_str)
@@ -436,13 +514,16 @@ class CilSearcher:
         for file1, rules in self.filtered.items():
             for e in rules:
                 if e[0] == 'typeattributeset':
-                    taset = self.create_taset(e)
-                    if not self.match_typeattributeset(taset):
+                    e_str = str(e)
+                    r = self.tasets.get(e_str, None)
+                    if r is None:
+                        r = self.create_taset(e)
+                        self.tasets[e_str] = r
+                    if not self.match_typeattributeset(r):
                         continue
                     found = True
                     if seen is not None:
                         # only show each entity once
-                        e_str = str(e)
                         if e_str in seen:
                             continue
                         seen.add(e_str)
@@ -540,6 +621,7 @@ def main() -> None:
 
     cs = CilSearcher(args)
     cs.load()
+    cs.setup()
     cs.search()
 
 
