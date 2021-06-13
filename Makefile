@@ -55,19 +55,19 @@ split_lines:
 	mkdir -p split_lines
 
 tmp/dupes.txt: $(cil_sums)
-	sha256sum $(cil_sums) | awk '{print $1}' | sort | uniq -c | egrep -v ' 1 ' | awk '{print $2}' > $@.tmp && mv $@.tmp $@
+	sha256sum $^ | awk '{print $1}' | sort | uniq -c | egrep -v ' 1 ' | awk '{print $2}' > $@.tmp && mv $@.tmp $@
 
 tmp/sums.txt: $(cil_sums)
-	sha256sum $(cil_sums) > $@.tmp && mv $@.tmp $@
-
-status.txt: $(split_lines_log)
-	./generate_status.sh $(split_lines_log) > $@.tmp && mv $@.tmp $@
+	sha256sum $^ > $@.tmp && mv $@.tmp $@
 
 dupes.txt: tmp/dupes.txt tmp/sums.txt
 	./generate_dupes.sh > $@.tmp && mv $@.tmp $@
 
-tmp/%.log: tmp/%.cil ./simple-cil-parser.py $(parser_exports)
-	./simple-cil-parser.py --from $< export/*.cil > $@.tmp && mv $@.tmp $@
+tmp/%.log: tmp/%.cil $(exports)
+	./simple-cil-parser.py --from $^ > $@.tmp && mv $@.tmp $@
+
+status.txt: $(split_lines_log)
+	./generate_status.sh $^ > $@.tmp && mv $@.tmp $@
 
 myclean: clean
 	rm -f -- $(parsed_tests) $(parsed_exports) status.txt dupes.txt
