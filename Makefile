@@ -14,6 +14,8 @@ tests += $(new_tests)
 split_lines_log = $(split_lines:split_lines/%.te=tmp/%.log)
 cil_sums = $(tmp_cils:%=%.tosum)
 
+# phony targets
+
 all: commit test myexport
 	# make this again as it can generate files
 	$(MAKE) test myexport
@@ -21,16 +23,29 @@ all: commit test myexport
 
 test: commit $(parsed_tests)
 myexport: commit $(parsed_exports)
-tox: commit
-	tox
-
-parse: | commit
-parse: $(exports)
-	$(PROG) $^
 
 commit:
 	git add -u && git commit -m hop || :
 	@mkdir -p tmp
+
+tox: commit
+	tox
+
+parsimonious-install:
+	pip3 install --upgrade --user parsimonious
+
+parsimonious-stubgen:
+	.tox/mypy/bin/stubgen -o . ~/.local/lib/python3.9/site-packages/parsimonious/*.py
+
+status: status.txt dupes.txt
+
+myclean: clean
+	rm -f -- $(parsed_tests) $(parsed_exports) status.txt dupes.txt
+	rm -rf split_lines UNKNOWN.egg-info .tox .mypy_cache
+
+.PHONY: all test myexport commit tox parsimonious-install parsimonious-stubgen status myclean
+
+# rules
 
 %.cil.json: %.cil
 	$(PROG) $<
@@ -40,19 +55,6 @@ tmp/%.cil: %.pp
 
 %.tosum: %
 	grep -v cil_gen_require $< | sort -u > $@.tmp && mv $@.tmp $@
-
-$(parsed_exports): %.json: %
-$(parsed_tests): %.json: %
-
-parsimonious:
-	pip3 install --upgrade --user parsimonious
-	.tox/mypy/bin/stubgen -o . ~/.local/lib/python3.9/site-packages/parsimonious/*.py
-
-lines: commit split_lines
-status: status.txt dupes.txt
-
-split_lines:
-	mkdir -p split_lines
 
 tmp/dupes.txt: $(cil_sums)
 	sha256sum $^ | awk '{print $1}' | sort | uniq -c | egrep -v ' 1 ' | awk '{print $2}' > $@.tmp && mv $@.tmp $@
@@ -69,11 +71,7 @@ tmp/%.log: tmp/%.cil $(exports)
 status.txt: $(split_lines_log)
 	./generate_status.sh $^ > $@.tmp && mv $@.tmp $@
 
-myclean: clean
-	rm -f -- $(parsed_tests) $(parsed_exports) status.txt dupes.txt
-	rm -rf split_lines UNKNOWN.egg-info .tox .mypy_cache
-
-.PHONY: all test myexport commit myclean tox parsimonious lines split_lines_log status
+# selinux
 
 QUIET := n
 
