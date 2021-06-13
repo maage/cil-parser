@@ -12,7 +12,7 @@ s/^ *//;
 s/ *$//;
 /./!d;
 /^ZZZ$/d;
-/^dir$/d;
+/^(dir|file|sock_file)$/d;
 ' | sed -r '
 /_r$/{
     s/^/role /;
@@ -103,6 +103,7 @@ gen_require() {
         fi
     ) | sed '
     /^class [^ ]*_class_set /d;
+    /./!d;
     '| sort -u
 }
 
@@ -115,12 +116,18 @@ for a in "$@"; do
     done < <(find "$D" -type f -name "$(basename -- "$a" .te)_*.te" -print0)
 
 	lineno=0
-    state=line
-    macrono=0
-    macroskip=-1
-    meta=()
+    # depth increases if we go inside of ( or { and decreases if ) or }
+    depth=0
+    # if state is true, then print, if false, not
+    state=(true)
+    # this represents other branch value in if then else or similar structures
+    branch=(true)
+    # type of structure we are currently in, "", {}, ()
+    struct=("")
 	while read -r line; do
 		(( lineno++ )) || :
+        # printf "$state (%s:%d): (%s:%d) %s\n" "$a" "$lineno" "${state[*]}" "$depth" "$line"
+
         out="$D"/"$(basename -- "$a" .te)"_"$lineno".te
         unset old_files["$out"]
 
@@ -129,150 +136,131 @@ for a in "$@"; do
             continue
         fi
 
-        skip=0
-        if (( macrono < 0 )); then
-            printf "$state macrono < 0: error(%s:%d): %s\n" "$a" "$lineno" "$line"
-            exit 1
-        fi
+        skip=1
 
-        if [[ "$line" =~ ^(optional_policy|gen_require)\(\`$ ]]; then
-            (( macrono++ )) || :
-        elif [[ "$line" =~ ^(tunable_policy|ifdef|ifndef)\(\`[^\']*\',\ *\`$ ]]; then
-            (( macrono++ )) || :
-        elif [[ "$line" =~ ^(tunable_policy)\(\`[^\']*\',\ *\`\',\ *\`$ ]]; then
-            # only else definition
-            (( macrono++ )) || :
-        elif [[ "$line" =~ ^\'\)$ ]]; then
-            (( macrono-- )) || :
-        elif [[ "$line" =~ ^(optional_policy|tunable_policy|ifdef|ifndef|gen_require)\( ]]; then
-            printf "$state bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
-            exit 1
+        # first go over different lines where we change state, but do not output
+        # last go over known states and output if state allows
+        # keep everything in one if/elif and always handle error in else
+        if [[ "$line" =~ ^(gen_require|optional_policy)\( ]]; then
+            (( depth++ )) || :
+            struct["$depth"]="()"
+            if [[ "$line" =~ ^(gen_require|optional_policy)\(\`$ ]]; then
+                state["$depth"]="${state[$(((depth-1)))]}"
+                branch["$depth"]="${state[$depth]}"
+            else
+                printf "${state[$depth]} bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
+        elif [[ "$line" =~ ^(ifdef|ifndef)\( ]]; then
+            (( depth++ )) || :
+            struct["$depth"]="()"
+            if [[ "$line" =~ ^ifdef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|enable_ubac|ipa_helper_noatsecure|targeted_policy)\',\ *\`$ ]]; then
+                # define true, value true
+                state["$depth"]="${state[$(((depth-1)))]}"
+                branch["$depth"]=false
+            elif [[ "$line" =~ ^ifdef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|sulogin_no_pam|TODO)\',\ *\`$ ]]; then
+                # define false, value false
+                state["$depth"]=false
+                branch["$depth"]="${state[$(((depth-1)))]}"
+            elif [[ "$line" =~ ^ifndef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|sulogin_no_pam|TODO)\',\ *\`$ ]]; then
+                # define false, value true
+                state["$depth"]="${state[$(((depth-1)))]}"
+                branch["$depth"]=false
+            elif [[ "$line" =~ ^ifndef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|enable_ubac|ipa_helper_noatsecure|targeted_policy)\',\ *\`$ ]]; then
+                # define true, value false
+                state["$depth"]=false
+                branch["$depth"]="${state[$(((depth-1)))]}"
+            elif [[ "$line" =~ ^ifdef\(\`[^\)]*\',\ *\`define\([^\)]*\)\'\)$ ]]; then
+                :
+            else
+                printf "${state[$depth]} ifdef error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
+        elif [[ "$line" =~ ^(tunable_policy)\( ]]; then
+            (( depth++ )) || :
+            struct["$depth"]="()"
+            if [[ "$line" =~ ^(tunable_policy)\(\`[^\']*\',\ *\`(\',\ *\`)?$ ]]; then
+                state["$depth"]="${state[$(((depth-1)))]}"
+                branch["$depth"]="${state[$depth]}"
+            else
+                printf "${state[$depth]} bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
+        elif [[ "$line" =~ ^require\ *\{$ ]]; then
+            (( depth++ )) || :
+            struct["$depth"]="{}"
+            state["$depth"]=false
+            branch["$depth"]="${state[$(((depth-1)))]}"
+        elif [[ "$line" =~ ^if\([^\)]*\)\ *\{$ ]]; then
+            (( depth++ )) || :
+            struct["$depth"]="{}"
+            state["$depth"]=false
+            branch["$depth"]="${state[$(((depth-1)))]}"
+        elif [ "$line" = "}" ]; then
+            if (( depth == 0 )); then
+                printf "${state[$depth]} depth < 0: error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
+            if [ "${struct[$depth]}" != "{}" ]; then
+                printf "${state[$depth]} bogus }: error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
+            unset struct["$depth"]
+            unset state["$depth"]
+            unset branch["$depth"]
+            (( depth-- )) || :
         elif [[ "$line" =~ \'\) ]]; then
-            printf "$state bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
-            exit 1
-        fi
-
-        if [[ "$line" =~ ^\',\ *\` ]]; then
-            if [ "${meta[$macrono]:-}" = tunable_policy ]; then
-                # handle both sides
-                :
-            elif [ "${meta[$macrono]:-}" = ifdef ]; then
-                # false else part of ifded
-                state=macroskip
-                macroskip="$macrono"
-                unset meta["$macrono"]
-            elif [ "$state" = macroskip ]; then
-                # true else part of ifded
-                meta["$macrono"]=ifdef
-                state=line
+            if [[ "$line" =~ ^\'\)$ ]]; then
+                if (( depth == 0 )); then
+                    printf "${state[$depth]} depth < 0: error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                    exit 1
+                fi
+                if [ "${struct[$depth]}" != "()" ]; then
+                    printf "${state[$depth]} bogus ): error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                    exit 1
+                fi
             else
-                printf "$state else error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                printf "${state[$depth]} bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-            skip=1
-        elif [ "$state" = line ]; then
-            if [[ "$line" =~ ^policy_module ]]; then
-                skip=1
-            elif [[ "$line" =~ ^optional_policy ]]; then
-                skip=1
-            elif [[ "$line" =~ ^tunable_policy ]]; then
-                skip=1
-                meta["$macrono"]=tunable_policy
-            elif [[ "$line" =~ ^ifdef ]]; then
-                if [[ "$line" =~ ^ifdef\(\`([^\)]*)\',\ *\`define\([^\)]*\)\'\)$ ]]; then
-                    :
-                elif [[ "$line" =~ ^ifdef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|enable_ubac|ipa_helper_noatsecure|targeted_policy)\',\ *\`$ ]]; then
-                    meta["$macrono"]=ifdef
-                elif [[ "$line" =~ ^ifdef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|sulogin_no_pam|TODO)\',\ *\`$ ]]; then
-                    if (( macroskip != -1 )); then
-                        # printf "error(%s:%d): %s\n" "$a" $lineno "$line"
-                        exit 1
-                    fi
-                    state=macroskip
-                    macroskip="$macrono"
-                else
-                    printf "$state ifdef error(%s:%d): %s\n" "$a" "$lineno" "$line"
-                    exit 1
-                fi
-                skip=1
-            elif [[ "$line" =~ ^ifndef ]]; then
-                # printf "error(%s:%d): %s\n" "$a" $lineno "$line"
-                if [[ "$line" =~ ^ifndef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|sulogin_no_pam|TODO)\',\ *\`$ ]]; then
-                    # defines false
-                    meta["$macrono"]=ifdef
-                elif [[ "$line" =~ ^ifndef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|enable_ubac|ipa_helper_noatsecure|targeted_policy)\',\ *\`$ ]]; then
-                    # defines true
-                    if (( macroskip != -1 )); then
-                        # printf "error(%s:%d): %s\n" "$a" $lineno "$line"
-                        exit 1
-                    fi
-                    state=macroskip
-                    macroskip="$macrono"
-                else
-                    printf "$state ifndef error(%s:%d): %s\n" "$a" "$lineno" "$line"
-                    exit 1
-                fi
-                skip=1
-            elif [[ "$line" =~ ^\'\) ]]; then
-                if (( ${#meta[@]} == 0 )); then
-                    :
-                elif [ "${meta["$(((macrono+1)))"]:-}" ]; then
-                    unset meta["$macrono"]
-                else
-                    :
-                    # printf "$state ) error(%s:%d): %d %s %s\n" "$a" "$lineno" "$macrono" "${meta[*]}" "$line"
-                    # exit 1
-                fi
-                skip=1
-            elif [[ "$line" =~ ^# ]]; then
-                skip=1
-            elif [[ "$line" =~ ^(type|attribute|role|typeattribute|typealias|class|attribute_role|roleattribute)\  ]]; then
-                skip=1
+            unset struct["$depth"]
+            unset state["$depth"]
+            unset branch["$depth"]
+            (( depth-- )) || :
+        elif [[ "$line" =~ ^\',\ *\`$ ]]; then
+            if [ "${struct[$depth]}" != "()" ]; then
+                printf "${state[$depth]} bogus ,: error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
+            tmp="${state[$depth]}"
+            state["$depth"]="${branch[$depth]}"
+            branch["$depth"]="$tmp"
+        elif [[ "$line" =~ ^(gen_tunable|policy_module)\([^\)]*\)$ ]]; then
+            :
+        elif [[ "$line" =~ ^# ]]; then
+            :
+        elif [ "${state[$depth]}" = true ]; then
+            if [[ "$line" =~ ^(type|attribute|role|typeattribute|typealias|class|attribute_role|roleattribute)\  ]]; then
+                # definitions skipped
+                :
             elif [[ "$line" =~ ^(sid|portcon|fs_use_trans|genfscon|fs_use_xattr|fs_use_task)\  ]]; then
-                # maybe could handle these, but it is used only on /kerne/
-                skip=1
-            elif [[ "$line" =~ ^gen_tunable ]]; then
-                skip=1
-            elif [[ "$line" =~ ^require\ \{ ]]; then
-                state=require
-                skip=1
-            elif [[ "$line" =~ ^if\(.*\)\ *\{ ]]; then
-                # maybe could handle this, but it is used only on kernel.te and such
-                state=if
-                skip=1
-            elif [[ "$line" =~ ^gen_require\( ]]; then
-                state=gen_require
-                skip=1
+                # maybe could handle these, but they are used only on /kernel/
+                :
             elif [[ "$line" =~ ^[a-zA-Z0-9_]+\( ]]; then
-                :
+                # interface rules
+                skip=0
             elif [[ "$line" =~ ^(allow|auditallow|dontaudit|neverallow|allowxperm|auditallowxperm|dontauditxperm|neverallowxperm|type_transition|role_transition)\  ]]; then
-                :
+                # rules
+                skip=0
             else
-                printf "$state unk error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                printf "${state[$depth]} unk error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-        elif [ "$state" = require ]; then
-            if [ "$line" = "}" ]; then
-                state=line
-            fi
-            skip=1
-        elif [ "$state" = if ]; then
-            if [ "$line" = "}" ]; then
-                state=line
-            fi
-            skip=1
-        elif [ "$state" = gen_require ]; then
-            if [[ "$line" =~ ^\'\) ]]; then
-                state=line
-            fi
-            skip=1
-        elif [ "$state" = macroskip ]; then
-            # printf "error(%s:%d): %d:%d %s\n" "$a" $lineno $macrono $macroskip "$line"
-            if (( macrono == macroskip )); then
-                state=line
-                macroskip=-1
-            fi
-            skip=1
+        elif [ "${state[$depth]}" = false ]; then
+            :
+        else
+            printf "${state[$depth]} unk error(%s:%d): %s\n" "$a" "$lineno" "$line"
+            exit 1
         fi
 
         if (( skip )); then
