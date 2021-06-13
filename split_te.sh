@@ -35,7 +35,7 @@ s/^/attribute /;
 '
 }
 
-rr_str='s/ *"[^"]*"//;'
+rr_str='s/ *"[^"]*" */ /;'
 rr1='
 s/, *s0 - mcs_systemhigh//;
 '
@@ -58,10 +58,12 @@ gen_require() {
             sed -r "${rr_str}${rr1}${rr2}" <<< "$line" | filter_require
         elif [[ "$line" =~ ^(role|type)_transition ]]; then
             # role / type_transition
+            line="${line#role_transition}"
+            line="${line#type_transition}"
             # class
-            sed -r  "$rr_str"'s/^(role|type)_transition *//;s/^[^ ]* [^ :]*:([^ ]*) .*/class \1 getattr;/;' <<< "$line"
+            sed -r  "${rr_str}"'s/^ *[^ ]* [^ :]*:([^ ]*) .*/class \1 getattr;/;' <<< "$line"
             # rest
-            sed -r  "$rr_str"'s/^(role|type)_transition *//;s/^([^ ]*) ([^ :]*):[^ ]* ([^ ;]*);$/\1\n\2\n\3/;' <<< "$line" | filter_require
+            sed -r  "${rr_str}"'s/^ *([^ ]*) ([^ :]*):[^ ]* ([^ ;]*);$/\1\n\2\n\3/;' <<< "$line" | filter_require
         else
             if [[ "$line" =~ :\ *\{ ]]; then
                 # handle class with group
@@ -99,7 +101,9 @@ gen_require() {
             s/^([^ ]*) ([^ ]*)/\1\n\2/;
             ' <<< "$line" | filter_require
         fi
-    ) | sort -u
+    ) | sed '
+    /^class [^ ]*_class_set /d;
+    '| sort -u
 }
 
 declare -A old_files=()
@@ -149,18 +153,16 @@ for a in "$@"; do
         fi
 
         if [[ "$line" =~ ^\',\ *\` ]]; then
-            if [ "${meta[$macrono]}" = tunable_policy ]; then
+            if [ "${meta[$macrono]:-}" = tunable_policy ]; then
                 # handle both sides
                 :
-            elif [ "${meta[$macrono]}" = ifdef ]; then
-                state=macroskip
-                macroskip="$macrono"
-                unset meta["$macrono"]
-            elif [ "${meta[$macrono]}" = ifndef ]; then
+            elif [ "${meta[$macrono]:-}" = ifdef ]; then
+                # false else part of ifded
                 state=macroskip
                 macroskip="$macrono"
                 unset meta["$macrono"]
             elif [ "$state" = macroskip ]; then
+                # true else part of ifded
                 meta["$macrono"]=ifdef
                 state=line
             else
@@ -197,7 +199,7 @@ for a in "$@"; do
                 # printf "error(%s:%d): %s\n" "$a" $lineno "$line"
                 if [[ "$line" =~ ^ifndef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|sulogin_no_pam|TODO)\',\ *\`$ ]]; then
                     # defines false
-                    meta["$macrono"]=ifndef
+                    meta["$macrono"]=ifdef
                 elif [[ "$line" =~ ^ifndef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|enable_ubac|ipa_helper_noatsecure|targeted_policy)\',\ *\`$ ]]; then
                     # defines true
                     if (( macroskip != -1 )); then
