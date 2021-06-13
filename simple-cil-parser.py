@@ -196,7 +196,7 @@ class CilSearcher:
     ) -> List[str]:
         if reverse and val == e_attr:
             return e_set
-        elif val in e_set:
+        if val in e_set:
             return [e_attr]
         return []
 
@@ -263,13 +263,13 @@ class CilSearcher:
             if e[0] == 'optional':
                 queue.extend(e[2:])
                 continue
-            elif e[0] == 'booleanif':
+            if e[0] == 'booleanif':
                 for b in e[2:]:
                     queue.extend(b[1:])
                 continue
-            elif e[0] == 'typeattributeset' and e[1] == 'cil_gen_require':
+            if e[0] == 'typeattributeset' and e[1] == 'cil_gen_require':
                 continue
-            elif e[0] == 'roleattributeset' and e[1] == 'cil_gen_require':
+            if e[0] == 'roleattributeset' and e[1] == 'cil_gen_require':
                 continue
 
             if e[0] == 'typeattributeset':
@@ -344,8 +344,7 @@ class CilSearcher:
         if len(e) == 6:
             assert isinstance(e[5], str)
             return Typetransition(e[1], e[2], e[3], e[5], e[4])
-        else:
-            return Typetransition(e[1], e[2], e[3], e[4])
+        return Typetransition(e[1], e[2], e[3], e[4])
 
     def setup(self) -> None:
         if self.args.resolveattr:
@@ -470,8 +469,8 @@ class CilSearcher:
                     if r is None:
                         r = self.create_terule(e, file1)
                         self.te_rules[e_str] = r
-                        trt_key = " ".join((r.type, r.source, r.target, r.klass))
-                        self.te_rule_tree[trt_key].append(r)
+                    trt_key = " ".join((r.type, r.source, r.target, r.klass))
+                    self.te_rule_tree[trt_key].append(r)
 
     def search_terule_one(self, r: TERule, seen: Optional[set[str]] = None) -> bool:
         if not self.match_type_enforcement_rule(r):
@@ -579,7 +578,7 @@ class CilSearcher:
         else:
             if r.filename is None:
                 return Quad.MORE
-            elif self.oargs['filename'] != r.filename:
+            if self.oargs['filename'] != r.filename:
                 return Quad.FALSE
         return Quad.TRUE
 
