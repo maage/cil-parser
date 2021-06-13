@@ -6,6 +6,8 @@ D=split_lines
 
 mkdir -p "$D"
 
+# input: tokens of unknown type, or some bogus tokens
+# output: type/role/attribute/etc clauses for each valid token
 filter_require() {
     sed -r '
 s/^ *//;
@@ -35,13 +37,12 @@ s/^/attribute /;
 '
 }
 
+# generate require content for a line
 rr_str='s/ *"[^"]*" */ /;'
 rr1='
 s/, *s0 - mcs_systemhigh//;
 '
-# s/^[^(), :;{}-]*//;
 rr2='s/[() ,{}]/\n/g;'
-
 gen_require() {
     local line="$1"; shift
     local ll l3
