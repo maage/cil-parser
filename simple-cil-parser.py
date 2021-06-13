@@ -165,7 +165,7 @@ class CilSearcher:
         self.args = args
         self.update_args()
         self.filtered: DefaultDict[str, ParsedCil] = defaultdict(list)
-        self.to_search: Optional[ParsedCil] = None
+        self.cil_from: Optional[ParsedCil] = None
 
     def update_args(self) -> None:
         self.oargs = vars(self.args)
@@ -205,8 +205,8 @@ class CilSearcher:
         from_file = self.oargs['from']
         if from_file is not None:
             tree = grammar.parse(from_file.read())
-            to_search = cilp.visit(tree)
-            self.to_search = self.handle_file(to_search)
+            cil_from = cilp.visit(tree)
+            self.cil_from = self.handle_file(cil_from)
 
         for file1 in self.args.files:
             queue = []
@@ -320,7 +320,7 @@ class CilSearcher:
             return Typetransition(e[1], e[2], e[3], e[4])
 
     def search(self) -> None:
-        if self.to_search is not None:
+        if self.cil_from is not None:
             self.search_from()
         elif self.args.resolveattr:
             self.search_resolveattr()
@@ -330,8 +330,8 @@ class CilSearcher:
             self.search_terule()
 
     def search_from(self) -> None:
-        assert self.to_search is not None
-        for e in self.to_search:
+        assert self.cil_from is not None
+        for e in self.cil_from:
             seen: set[str] = set()
             assert isinstance(e[0], str)
             if e[0] in type_enforcement_rule_types:
