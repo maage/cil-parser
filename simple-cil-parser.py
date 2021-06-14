@@ -134,8 +134,10 @@ class TERule:
 # type attribute set
 @dataclass
 class TASet:
+    file: str
+    string: str
     type: str
-    attrs: list[str] = field(default_factory=list)
+    attrs: set[str] = field(default_factory=set)
     is_logical: bool = False
 
 
@@ -168,7 +170,8 @@ class CilSearcher:
         self.args = args
         self.update_args()
         self.filtered: DefaultDict[str, ParsedCil] = defaultdict(list)
-        self.tasets: Dict[str, TASet] = {}
+        self.tasets: List[TASet] = []
+        self.reverse_tasets: Dict[str, List[TASet]] = defaultdict(list)
         self.te_rules: Dict[str, TERule] = {}
         self.te_rule_tree: Dict[str, List[TERule]] = defaultdict(list)
         self.typetransitions: Dict[str, Typetransition] = {}
@@ -177,18 +180,25 @@ class CilSearcher:
     def update_args(self) -> None:
         self.oargs = vars(self.args)
         self.vargs: Dict[str, Set[str]] = defaultdict(set)
-        for key in (
-            'source',
-            'target',
-            'not_source',
-            'not_target',
-            'perm',
-        ):
-            if self.oargs[key] is not None:
-                assert isinstance(self.oargs[key], str)
-                val: str = self.oargs[key]
-                self.vargs[key] = set()
-                self.vargs[key].add(val)
+        key = 'perm'
+        if self.oargs[key] is not None:
+            if isinstance(self.oargs[key], str):
+                self.vargs[key].add(self.oargs[key])
+            else:
+                self.vargs[key].update(self.oargs[key])
+        for key in ('source', 'target', 'not_source', 'not_target'):
+            if self.oargs[key] is None:
+                continue
+            vals = set()
+            if isinstance(self.oargs[key], str):
+                vals.add(self.oargs[key])
+            else:
+                vals.update(self.oargs[key])
+            self.vargs[key].update(vals)
+            for val in vals:
+                if val in self.reverse_tasets:
+                    for r in self.reverse_tasets[val]:
+                        self.vargs[key].add(r.type)
 
     @staticmethod
     def get_typeattributeset(
@@ -320,17 +330,17 @@ class CilSearcher:
         return TERule(file, str(e), e[0], e[1], e[2], e[3][0], e[3][1])
 
     @staticmethod
-    def create_taset(e: List[Union[str, List[Any]]]) -> TASet:
+    def create_taset(e: List[Union[str, List[Any]]], file: str) -> TASet:
         assert isinstance(e, list)
         assert len(e) == 3
         assert isinstance(e[0], str)
         assert isinstance(e[1], str)
         assert isinstance(e[2], list)
         if e[2][0] in ('and', 'not', 'or'):
-            return TASet(e[1], [], True)
+            return TASet(file, str(e), e[1], [], True)
         for _ in e[2]:
             assert isinstance(_, str)
-        return TASet(e[1], e[2])
+        return TASet(file, str(e), e[1], e[2])
 
     @staticmethod
     def create_typetransition(e: List[Union[str, List[Any]]]) -> Typetransition:
@@ -347,6 +357,7 @@ class CilSearcher:
         return Typetransition(e[1], e[2], e[3], e[4])
 
     def setup(self) -> None:
+        self.setup_tasets()
         if self.args.resolveattr:
             return
         if self.args.attr:
@@ -472,6 +483,15 @@ class CilSearcher:
                     trt_key = " ".join((r.type, r.source, r.target, r.klass))
                     self.te_rule_tree[trt_key].append(r)
 
+    def setup_tasets(self) -> None:
+        for file1, rules in self.filtered.items():
+            for e in rules:
+                if e[0] == 'typeattributeset':
+                    r = self.create_taset(e, file1)
+                    self.tasets.append(r)
+                    for attr in r.attrs:
+                        self.reverse_tasets[attr].append(r)
+
     def search_terule_one(self, r: TERule, seen: Optional[set[str]] = None) -> bool:
         if not self.match_type_enforcement_rule(r):
             return False
@@ -510,23 +530,16 @@ class CilSearcher:
 
     def search_taset(self, seen: Optional[set[str]] = None) -> bool:
         found = False
-        for file1, rules in self.filtered.items():
-            for e in rules:
-                if e[0] == 'typeattributeset':
-                    e_str = str(e)
-                    r = self.tasets.get(e_str, None)
-                    if r is None:
-                        r = self.create_taset(e)
-                        self.tasets[e_str] = r
-                    if not self.match_typeattributeset(r):
-                        continue
-                    found = True
-                    if seen is not None:
-                        # only show each entity once
-                        if e_str in seen:
-                            continue
-                        seen.add(e_str)
-                    print(f'{file1}:{e}')
+        for r in self.tasets:
+            if not self.match_typeattributeset(r):
+                continue
+            found = True
+            if seen is not None:
+                # only show each entity once
+                if r.string in seen:
+                    continue
+                seen.add(r.string)
+            print(f'{r.file}:{r.string}')
         return found
 
     def search_resolveattr(self) -> None:
