@@ -293,35 +293,12 @@ class CilSearcher:
             if e[0] == 'roleattributeset' and e[1] == 'cil_gen_require':
                 continue
 
-            if e[0] == 'typeattributeset':
-                e_attr: str = e[1]
-                e_set: List[str] = e[2]
-                for key in 'source', 'target':
-                    if self.oargs[key] is not None:
-                        self.vargs[key].update(
-                            self.get_typeattributeset(
-                                e_attr,
-                                e_set,
-                                self.oargs[key],
-                                self.oargs[f'reverse_{key}'],
-                            )
-                        )
-                    not_key = f'not_{key}'
-                    if self.oargs[not_key] is not None:
-                        self.vargs[not_key].update(
-                            self.get_typeattributeset(
-                                e_attr,
-                                e_set,
-                                self.oargs[not_key],
-                                self.oargs[f'reverse_{key}'],
-                            )
-                        )
-
             # only show each entity once
             e_str = str(e)
             if e_str in seen:
                 continue
             seen.add(e_str)
+
             result.append(e)
         return result
 
