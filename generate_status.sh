@@ -10,5 +10,9 @@ set +e
 grep -El '^# found:' -- "$@" > "$D"/found.txt
 grep -El '^# no:' -- "$@" > "$D"/no.txt
 grep -El '^# some:' -- "$@" > "$D"/some.txt
-grep -Fvf "$D"/no.txt "$D"/found.txt | grep -Fvf "$D"/some.txt
+for a in $(grep -Fvf "$D"/no.txt "$D"/found.txt | grep -Fvf "$D"/some.txt); do
+    printf "# file: %s\n" "$a"
+    cat -- "$a"
+    echo
+done
 exit 0
