@@ -221,7 +221,7 @@ class CilSearcher:
 
         cache_file = 'tmp/_cache_filterd.json'
         filtered_cache: Dict[str, List[Any]] = {}
-        rnd = random.Random()
+        rnd = random.Random().random()
         filtered_cache_changed = False
         if os.path.exists(cache_file):
             with open(cache_file, 'r') as fd:
