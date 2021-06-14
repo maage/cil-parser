@@ -11,6 +11,8 @@ parsed_tests = $(tests:%.cil=%.cil.json)
 new_tests = $(pps:%.pp=tmp/%.cil)
 tests += $(new_tests)
 
+.PRECIOUS: tmp/%.cil
+
 split_lines_log = $(split_lines:split_lines/%.te=tmp/%.log)
 cil_sums = $(tmp_cils:%=%.tosum)
 
