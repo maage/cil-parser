@@ -461,7 +461,12 @@ class CilSearcher:
                                 found = True
             return found
 
-        for rules in self.filtered.values():
+        for file1, rules in self.filtered.items():
+            if self.oargs['from'] is not None and (
+                self.oargs['from'].name == file1
+                or os.path.basename(self.oargs['from'].name) == os.path.basename(file1)
+            ):
+                continue
             for e in rules:
                 if e[0] in type_enforcement_rule_types:
                     e_str = str(e)
@@ -493,6 +498,11 @@ class CilSearcher:
                         self.reverse_tasets[attr].append(r)
 
     def search_terule_one(self, r: TERule, seen: Optional[set[str]] = None) -> bool:
+        if self.oargs['from'] is not None and (
+            self.oargs['from'].name == r.file
+            or os.path.basename(self.oargs['from'].name) == os.path.basename(r.file)
+        ):
+            return False
         if not self.match_type_enforcement_rule(r):
             return False
         if seen is not None:
