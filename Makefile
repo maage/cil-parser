@@ -5,6 +5,7 @@ tests = $(wildcard test/*.cil)
 pps = $(wildcard *.pp)
 split_lines = $(wildcard split_lines/*.te)
 tmp_cils = $(wildcard tmp/*.cil)
+exports += $(tmp_cils)
 
 parsed_exports = $(exports:%.cil=%.cil.json)
 parsed_tests = $(tests:%.cil=%.cil.json)
