@@ -133,7 +133,7 @@ for a in "$@"; do
         unset old_files["$out"]
 
         if [ ! "$line" ]; then
-            outdel+=("$out")
+            outdel+=("$out" "${out%.te}".fc "${out%.te}".if)
             continue
         fi
 
