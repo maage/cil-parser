@@ -13,6 +13,7 @@ from enum import (
 import json
 import os
 import random
+import sys
 
 from typing import (
     # cast,
@@ -211,10 +212,18 @@ class CilSearcher:
         return []
 
     @staticmethod
-    def file_nt(f1: str, f2: str) -> bool:
-        if os.path.exists(f2):
-            return bool(os.path.getmtime(f1) < os.path.getmtime(f2))
-        return False
+    def file_nt(f1: str, f2: str) -> Optional[bool]:
+        if not os.path.exists(f1):
+            return None
+        if not os.path.exists(f2):
+            return None
+        result = bool(os.path.getmtime(f1) > os.path.getmtime(f2))
+        if result:
+            print(
+                f'Cache miss: {f1}:{os.path.getmtime(f1)} < {f2}:{os.path.getmtime(f2)}',
+                file=sys.stderr,
+            )
+        return result
 
     def load(self) -> None:
         file1: str
@@ -234,7 +243,8 @@ class CilSearcher:
             self.cil_from = self.handle_file(cil_from)
 
         for file1 in self.args.files:
-            if self.file_nt(file1, cache_file):
+            nt = self.file_nt(file1, cache_file)
+            if nt is not None and not nt:
                 if file1 in filtered_cache:
                     self.filtered[file1].extend(filtered_cache[file1])
                     continue
@@ -242,7 +252,8 @@ class CilSearcher:
             filtered_cache_changed = True
             queue = []
             # It is way faster to load json than parse cil
-            if self.file_nt(file1, f'{file1}.json'):
+            nt = self.file_nt(file1, f'{file1}.json')
+            if nt is not None and not nt:
                 with open(f'{file1}.json', 'r') as fd:
                     queue.extend(json.load(fd))
             else:
