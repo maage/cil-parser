@@ -273,7 +273,8 @@ class CilSearcher:
                 json.dump(self.filtered, out)
             os.replace(tmp, cache_file)
 
-    def handle_file(self, queue: List[Any]) -> ParsedCil:
+    @staticmethod
+    def handle_file(queue: List[Any]) -> ParsedCil:
         seen: set[str] = set()
         result: ParsedCil = []
 
