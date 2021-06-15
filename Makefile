@@ -59,9 +59,8 @@ tmp/sums.txt: $(cil_sums)
 dupes.txt: tmp/dupes.txt tmp/sums.txt
 	./generate_dupes.sh > $@.tmp && mv $@.tmp $@
 
-tmp/%.log: tmp/%.cil $(exports) tmp/_cache
-	@printf "%s --from %s export/*.cil tmp/*.cil > $@\n" $(PROG) $<
-	@$(PROG) --from $< $(exports) > $@.tmp && mv $@.tmp $@
+tmp/%.log: tmp/%.cil tmp/_cache
+	$(PROG) --from-all-known --from $< > $@.tmp && mv $@.tmp $@
 
 status.txt: $(split_lines_log)
 	./generate_status.sh $^ > $@.tmp && mv $@.tmp $@
