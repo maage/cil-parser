@@ -3,29 +3,20 @@ PROG := ./simple-cil-parser.py
 exports = $(wildcard export/*.cil)
 tests = $(wildcard test/*.cil)
 split_lines = $(wildcard split_lines/*.te)
-tmp_cils = $(wildcard tmp/*.cil)
-exports += $(tmp_cils)
-
-parsed_exports = $(exports:%.cil=%.cil.json)
-parsed_tests = $(tests:%.cil=%.cil.json)
-parsed_exports += $(split_lines:split_lines/%.te=tmp/%.cil.json)
 
 .PRECIOUS: tmp/%.cil
 
 pp_split_lines = $(split_lines:split_lines/%.te=%.pp)
-json_split_lines = $(split_lines:split_lines/%.te=tmp/%.cil.json)
 split_lines_log = $(split_lines:split_lines/%.te=tmp/%.log)
 cil_sums = $(tmp_cils:%=%.tosum)
+tmp_cils = $(split_lines:split_lines/%.te=tmp/%.cil)
+exports += $(tmp_cils)
 
 # phony targets
 
-all: commit $(pp_split_lines) $(json_split_lines) myexport
-	# make this again as it can generate files
-	$(MAKE) myexport
-	$(MAKE) status
+all: commit $(pp_split_lines) tmp/_cache dupes.txt status.txt
 
 test: commit $(parsed_tests)
-myexport: commit $(parsed_exports) tmp/_cache_filterd.json
 
 commit:
 	git add -u && git commit -m hop || :
@@ -40,22 +31,18 @@ parsimonious-install:
 parsimonious-stubgen:
 	.tox/mypy/bin/stubgen -o . ~/.local/lib/python3.9/site-packages/parsimonious/*.py
 
-status: status.txt dupes.txt
-
 myclean: clean
-	rm -f -- $(parsed_tests) $(parsed_exports) status.txt dupes.txt
+	rm -f -- $(parsed_tests) status.txt dupes.txt
 	rm -rf split_lines UNKNOWN.egg-info .tox .mypy_cache
 
-.PHONY: all test myexport commit tox parsimonious-install parsimonious-stubgen status myclean
+.PHONY: all test commit tox parsimonious-install parsimonious-stubgen myclean
 
 # rules
 
-tmp/_cache_filterd.json: $(PROG) $(exports) $(split_lines_log)
-	@printf "%s exports/*.cil tmp/*.cil\n" $(PROG)
+tmp/_cache: $(PROG) $(exports)
+	@printf "%s export/*.cil tmp/*.cil\n" $(PROG)
 	@$(PROG) $(exports) > /dev/null
-
-%.cil.json: %.cil
-	$(PROG) $<
+	@touch -- $@
 
 tmp/%.cil: %.pp
 	/usr/libexec/selinux/hll/pp < $< > $@
@@ -72,9 +59,9 @@ tmp/sums.txt: $(cil_sums)
 dupes.txt: tmp/dupes.txt tmp/sums.txt
 	./generate_dupes.sh > $@.tmp && mv $@.tmp $@
 
-tmp/%.log: tmp/%.cil $(exports)
-	@printf "%s --from %s exports/*.cil tmp/*.cil\n" $(PROG) $<
-	@$(PROG) --from $^ > $@.tmp && mv $@.tmp $@
+tmp/%.log: tmp/%.cil $(exports) tmp/_cache
+	@printf "%s --from %s export/*.cil tmp/*.cil > $@\n" $(PROG) $<
+	@$(PROG) --from $< $(exports) > $@.tmp && mv $@.tmp $@
 
 status.txt: $(split_lines_log)
 	./generate_status.sh $^ > $@.tmp && mv $@.tmp $@
