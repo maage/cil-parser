@@ -12,10 +12,11 @@ filter_require() {
     sed -r '
 s/^ *//;
 s/ *$//;
-/./!d;
+s/;$//;
 /^ZZZ$/d;
 /^(dir|file|sock_file)$/d;
 ' | sed -r '
+/./!d;
 /_r$/{
     s/^/role /;
 }
@@ -25,8 +26,8 @@ s/ *$//;
 /_t$/{
     s/^/type /;
 }
-/^user$/{
-    s/^.*$/type user_t/;
+/^(user|unconfined)$/{
+    s/^(.*)$/type \1_t/;
 }
 t x;
 s/^/attribute /;
@@ -40,6 +41,7 @@ s/^/attribute /;
 # generate require content for a line
 rr_str='s/ *"[^"]*" */ /;'
 rr1='
+s/, s0, s0 - mls_systemhigh, mcs_allcats//;
 s/, *s0 - mcs_systemhigh//;
 '
 rr2='s/[() ,{}]/\n/g;'
@@ -57,14 +59,18 @@ gen_require() {
             line="${line#*\(}"
             line="${line%)*}"
             sed -r "${rr_str}${rr1}${rr2}" <<< "$line" | filter_require
-        elif [[ "$line" =~ ^(role|type)_transition ]]; then
+        elif [[ "$line" =~ ^type_transition ]]; then
             # role / type_transition
-            line="${line#role_transition}"
             line="${line#type_transition}"
             # class
             sed -r  "${rr_str}"'s/^ *[^ ]* [^ :]*:([^ ]*) .*/class \1 getattr;/;' <<< "$line"
             # rest
             sed -r  "${rr_str}"'s/^ *([^ ]*) ([^ :]*):[^ ]* ([^ ;]*);$/\1\n\2\n\3/;' <<< "$line" | filter_require
+        elif [[ "$line" =~ ^role_transition ]]; then
+            # role / type_transition
+            line="${line#role_transition}"
+            # rest
+            sed -r  's/^ *([^ ]*) ([^ ]*) ([^ ;]*);$/\1\n\2\n\3/;' <<< "$line" | filter_require
         else
             if [[ "$line" =~ :\ *\{ ]]; then
                 # handle class with group
