@@ -706,11 +706,12 @@ class CilSearcher:
                     == os.path.basename(r.file)
                 ):
                     continue
+                seen_key = ' '.join((r.file, r.string,))
                 if seen is not None:
                     # only show each entity once
-                    if r.string in seen:
+                    if seen_key in seen:
                         continue
-                    seen.add(r.string)
+                    seen.add(seen_key)
                 if self.oargs['perms'] is not None:
                     got_perms = set(r.perms)
                     if wanted_perms.isdisjoint(got_perms):
@@ -792,11 +793,12 @@ class CilSearcher:
                 q = self.match_typetransition(r)
                 if q == Quad.FALSE:
                     continue
+                seen_key = ' '.join((r.file, r.string,))
                 if seen is not None:
                     # only show each entity once
-                    if r.string in seen:
+                    if seen_key in seen:
                         continue
-                    seen.add(r.string)
+                    seen.add(seen_key)
                 print(f'{r.file}:{r.string}')
                 found = q
             return found
@@ -823,11 +825,12 @@ class CilSearcher:
             if not self.match_typeattributeset(r):
                 continue
             found = True
+            seen_key = ' '.join((r.file, r.string,))
             if seen is not None:
                 # only show each entity once
-                if r.string in seen:
+                if seen_key in seen:
                     continue
-                seen.add(r.string)
+                seen.add(seen_key)
             print(f'{r.file}:{r.string}')
         return found
 
