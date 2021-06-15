@@ -74,6 +74,7 @@ grammar = Grammar(
 
 
 class CilParser(parsimonious.NodeVisitor):
+    # pylint: disable=no-self-use, unused-argument
     def visit_s_expr(self, node: Node, visited_children: List[Any]) -> List[Any]:
         # Go into items 2nd in definition (index 1) and extend to not to
         # create new level here needlessly.
@@ -558,6 +559,7 @@ class CilSearcher:
             self.search_terule()
 
     def search_from(self) -> None:
+        # pylint: disable=too-many-branches, too-many-statements
         assert self.cil_from is not None
         for e in self.cil_from:
             seen: set[str] = set()
@@ -853,6 +855,7 @@ class CilSearcher:
         return True
 
     def match_typetransition(self, r: Typetransition) -> Quad:
+        # pylint: disable=too-many-return-statements
         if r.subject != self.oargs['subject']:
             return Quad.FALSE
         if r.source not in self.vargs['source']:
