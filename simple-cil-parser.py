@@ -10,10 +10,15 @@ from enum import (
     Enum,
     auto,
 )
-import json
+
+# import json
 import os
+
 import random
-import sys
+import sqlite3
+import string
+
+# import sys
 
 from typing import (
     # cast,
@@ -24,7 +29,7 @@ from typing import (
     Dict,
     DefaultDict,
     # Generator,
-    # Iterator,
+    Iterator,
     List,
     # Mapping,
     # NewType,
@@ -32,7 +37,7 @@ from typing import (
     # Sequence,
     Set,
     # TextIO,
-    # Tuple,
+    Tuple,
     # TypeVar,
     # TYPE_CHECKING,
     Union,
@@ -131,6 +136,17 @@ class TERule:
     klass: str
     perms: list[str] = field(default_factory=list)
 
+    def sqldict(self) -> Dict[str, str]:
+        return {
+            'file': self.file,
+            'string': self.string,
+            'type': self.type,
+            'source': self.source,
+            'target': self.target,
+            'class': self.klass,
+            'perms': ' '.join(self.perms),
+        }
+
 
 # type attribute set
 @dataclass
@@ -141,14 +157,36 @@ class TASet:
     attrs: set[str] = field(default_factory=set)
     is_logical: bool = False
 
+    def sqldict(self) -> Dict[str, Union[str, bool]]:
+        return {
+            'file': self.file,
+            'string': self.string,
+            'type': self.type,
+            'attrs': ' '.join(self.attrs),
+            'is_logical': self.is_logical,
+        }
+
 
 @dataclass
 class Typetransition:
+    file: str
+    string: str
     subject: str
     source: str
     klass: str
     target: str
     filename: Optional[str] = None
+
+    def sqldict(self) -> Dict[str, Optional[str]]:
+        return {
+            'file': self.file,
+            'string': self.string,
+            'subject': self.subject,
+            'source': self.source,
+            'class': self.klass,
+            'target': self.target,
+            'filename': self.filename,
+        }
 
 
 cilp = CilParser()
@@ -170,24 +208,28 @@ class CilSearcher:
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
         self.update_args()
-        self.filtered: DefaultDict[str, ParsedCil] = defaultdict(list)
-        self.tasets: List[TASet] = []
-        self.reverse_tasets: Dict[str, List[TASet]] = defaultdict(list)
-        self.te_rules: Dict[str, TERule] = {}
-        self.te_rule_tree: Dict[str, List[TERule]] = defaultdict(list)
-        self.typetransitions: Dict[str, Typetransition] = {}
+        self.tasets: DefaultDict[str, List[TASet]] = defaultdict(list)
+        self.reverse_tasets: DefaultDict[str, List[TASet]] = defaultdict(list)
+        self.typetransitions: List[Typetransition] = []
         self.cil_from: Optional[ParsedCil] = None
 
     def update_args(self) -> None:
         self.oargs = vars(self.args)
-        self.vargs: Dict[str, Set[str]] = defaultdict(set)
-        key = 'perm'
-        if self.oargs[key] is not None:
+        self.vargs: DefaultDict[str, Set[str]] = defaultdict(set)
+        for key in ('perms',):
+            if key not in self.oargs:
+                self.oargs[key] = None
+                continue
+            if self.oargs[key] is None:
+                continue
             if isinstance(self.oargs[key], str):
                 self.vargs[key].add(self.oargs[key])
             else:
                 self.vargs[key].update(self.oargs[key])
-        for key in ('source', 'target', 'not_source', 'not_target'):
+        for key in ('subject', 'source', 'target', 'not_source', 'not_target'):
+            if key not in self.oargs:
+                self.oargs[key] = None
+                continue
             if self.oargs[key] is None:
                 continue
             vals = set()
@@ -211,67 +253,182 @@ class CilSearcher:
             return [e_attr]
         return []
 
-    @staticmethod
-    def file_nt(f1: str, f2: str) -> Optional[bool]:
-        if not os.path.exists(f1):
-            return None
-        if not os.path.exists(f2):
-            return None
-        result = bool(os.path.getmtime(f1) > os.path.getmtime(f2))
-        if result:
-            print(
-                f'Cache miss: {f1}:{os.path.getmtime(f1)} < {f2}:{os.path.getmtime(f2)}',
-                file=sys.stderr,
-            )
-        return result
+    def setup_cache(self) -> None:
+        con = sqlite3.connect('export/cache.db', timeout=3600)
+        # con.enable_callback_tracebacks(print)
+        con.row_factory = sqlite3.Row
+        cur = con.cursor()
+        cur.execute('PRAGMA foreign_keys')
+
+        cur.execute('BEGIN EXCLUSIVE TRANSACTION')
+
+        cur.execute(
+            '''CREATE TABLE IF NOT EXISTS files
+            ( file TEXT PRIMARY KEY
+            , mtime_us INTEGER NOT NULL
+            )'''
+        )
+        cur.execute(
+            '''CREATE TABLE IF NOT EXISTS te_rules
+            ( id INTEGER PRIMARY KEY AUTOINCREMENT
+            , file TEXT
+            , string TEXT NOT NULL
+            , type TEXT NOT NULL
+            , source TEXT NOT NULL
+            , target TEXT NOT NULL
+            , class TEXT NOT NULL
+            , perms TEXT NOT NULL
+            , FOREIGN KEY(file) REFERENCES files(file)
+            )'''
+        )
+        cur.execute(
+            '''CREATE TABLE IF NOT EXISTS typeattributes
+            ( id INTEGER PRIMARY KEY AUTOINCREMENT
+            , file TEXT
+            , string TEXT NOT NULL
+            , type TEXT NOT NULL
+            , attrs TEXT NOT NULL
+            , is_logical INTEGER DEFAULT (0)
+            , FOREIGN KEY(file) REFERENCES files(file)
+            )'''
+        )
+        cur.execute(
+            '''CREATE TABLE IF NOT EXISTS typetransitions
+            ( id INTEGER PRIMARY KEY AUTOINCREMENT
+            , file TEXT
+            , string TEXT NOT NULL
+            , subject TEXT NOT NULL
+            , source TEXT NOT NULL
+            , class TEXT NOT NULL
+            , target TEXT NOT NULL
+            , filename TEXT
+            , FOREIGN KEY(file) REFERENCES files(file)
+            )'''
+        )
+
+        con.commit()
+        self.cur = cur
+        self.con = con
+
+    def refresh_cache(self) -> None:
+        cur = self.cur
+
+        cur.execute('BEGIN EXCLUSIVE TRANSACTION')
+
+        files_no_need_to_update = set()
+        for file1 in self.args.files:
+            if os.path.exists(file1):
+                mtime_us = int(os.path.getmtime(file1) * 1000000)
+                cur.execute(
+                    'SELECT file FROM files WHERE file=:file AND mtime_us == :mtime_us',
+                    {'file': file1, 'mtime_us': mtime_us},
+                )
+                for res in cur.fetchall():
+                    files_no_need_to_update.add(res[0])
+        files_to_update = set(self.args.files) - files_no_need_to_update
+        # print(f'# files_to_update: {files_to_update}')
+        for idx, file1 in enumerate(files_to_update):
+            print(f'# {idx+1}/{len(files_to_update)} {file1}')
+            with open(file1, 'r') as fd:
+                tree = grammar.parse(fd.read())
+                mtime_us = int(os.path.getmtime(file1) * 1000000)
+                queue = cilp.visit(tree)
+                rules = self.handle_file(queue)
+                cur.execute(
+                    '''
+                    DELETE FROM te_rules
+                    WHERE file=:file
+                    ''',
+                    {'file': file1},
+                )
+                cur.execute(
+                    '''
+                    DELETE FROM typeattributes
+                    WHERE file=:file
+                    ''',
+                    {'file': file1},
+                )
+                cur.execute(
+                    '''
+                    DELETE FROM typetransitions
+                    WHERE file=:file
+                    ''',
+                    {'file': file1},
+                )
+
+                te_rules = []
+                typeattributes = []
+                typetransitions = []
+                for e in rules:
+                    if e[0] in type_enforcement_rule_types:
+                        te = self.create_terule(e, file1)
+                        te_rules.append(te)
+                    elif e[0] == 'typeattributeset':
+                        ta = self.create_taset(e, file1)
+                        typeattributes.append(ta)
+                    elif e[0] == 'typetransition':
+                        tt = self.create_typetransition(e, file1)
+                        typetransitions.append(tt)
+
+                def gen_te_rules() -> Iterator[Any]:
+                    for r in te_rules:
+                        yield r.sqldict()
+
+                cur.executemany(
+                    '''
+                    INSERT INTO te_rules
+                          ( file,  string,  type,  source,  target,  class,  perms)
+                    VALUES(:file, :string, :type, :source, :target, :class, :perms)
+                    ''',
+                    gen_te_rules(),
+                )
+
+                def gen_typeattributes() -> Iterator[Any]:
+                    for r in typeattributes:
+                        yield r.sqldict()
+
+                cur.executemany(
+                    '''
+                    INSERT INTO typeattributes
+                          ( file,  string,  type,  attrs,  is_logical)
+                    VALUES(:file, :string, :type, :attrs, :is_logical)
+                    ''',
+                    gen_typeattributes(),
+                )
+
+                def gen_typetransitions() -> Iterator[Any]:
+                    for r in typetransitions:
+                        yield r.sqldict()
+
+                cur.executemany(
+                    '''
+                    INSERT INTO typetransitions
+                          ( file,  string,  subject,  source,  class,  target,  filename)
+                    VALUES(:file, :string, :subject, :source, :class, :target, :filename)
+                    ''',
+                    gen_typetransitions(),
+                )
+
+                cur.execute(
+                    '''
+                    REPLACE INTO files
+                           ( file,  mtime_us)
+                    VALUES (:file, :mtime_us)
+                    ''',
+                    {'file': file1, 'mtime_us': mtime_us},
+                )
+        self.con.commit()
 
     def load(self) -> None:
-        file1: str
-
-        cache_file = 'tmp/_cache_filterd.json'
-        filtered_cache: Dict[str, List[Any]] = {}
-        rnd = random.Random().random()
-        filtered_cache_changed = False
-        if os.path.exists(cache_file):
-            with open(cache_file, 'r') as fd:
-                filtered_cache = json.load(fd)
+        self.setup_cache()
+        self.refresh_cache()
 
         from_file = self.oargs['from']
         if from_file is not None:
+            print(f'# {1}/{1} {from_file}')
             tree = grammar.parse(from_file.read())
             cil_from = cilp.visit(tree)
             self.cil_from = self.handle_file(cil_from)
-
-        for file1 in self.args.files:
-            nt = self.file_nt(file1, cache_file)
-            if nt is not None and not nt:
-                if file1 in filtered_cache:
-                    self.filtered[file1].extend(filtered_cache[file1])
-                    continue
-
-            filtered_cache_changed = True
-            queue = []
-            # It is way faster to load json than parse cil
-            nt = self.file_nt(file1, f'{file1}.json')
-            if nt is not None and not nt:
-                with open(f'{file1}.json', 'r') as fd:
-                    queue.extend(json.load(fd))
-            else:
-                print(f'# {file1}')
-                with open(file1, 'r') as fd:
-                    tree = grammar.parse(fd.read())
-                    queue = cilp.visit(tree)
-                    tmp = f'{file1}.json.tmp.{rnd}'
-                    with open(tmp, 'w') as out:
-                        json.dump(queue, out)
-                    os.replace(tmp, f'{file1}.json')
-            self.filtered[file1].extend(self.handle_file(queue))
-
-        if filtered_cache_changed:
-            tmp = f'{cache_file}.tmp.{rnd}'
-            with open(tmp, 'w') as out:
-                json.dump(self.filtered, out)
-            os.replace(tmp, cache_file)
 
     @staticmethod
     def handle_file(queue: List[Any]) -> ParsedCil:
@@ -326,13 +483,15 @@ class CilSearcher:
         assert isinstance(e[1], str)
         assert isinstance(e[2], list)
         if e[2][0] in ('and', 'not', 'or'):
-            return TASet(file, str(e), e[1], [], True)
+            return TASet(file, str(e), e[1], set(), True)
         for _ in e[2]:
             assert isinstance(_, str)
-        return TASet(file, str(e), e[1], e[2])
+        return TASet(file, str(e), e[1], set(e[2]))
 
     @staticmethod
-    def create_typetransition(e: List[Union[str, List[Any]]]) -> Typetransition:
+    def create_typetransition(
+        e: List[Union[str, List[Any]]], file: str
+    ) -> Typetransition:
         assert isinstance(e, list)
         assert len(e) >= 5
         assert isinstance(e[0], str)
@@ -342,16 +501,40 @@ class CilSearcher:
         assert isinstance(e[4], str)
         if len(e) == 6:
             assert isinstance(e[5], str)
-            return Typetransition(e[1], e[2], e[3], e[5], e[4])
-        return Typetransition(e[1], e[2], e[3], e[4])
+            return Typetransition(file, str(e), e[1], e[2], e[3], e[5], e[4])
+        return Typetransition(file, str(e), e[1], e[2], e[3], e[4])
 
     def setup(self) -> None:
         self.setup_tasets()
-        if self.args.resolveattr:
-            return
-        if self.args.attr:
-            return
-        self.setup_terule_tree()
+
+    def setup_tasets(self) -> None:
+        rnd = ''.join(
+            random.choice(string.ascii_letters + string.digits) for _ in range(16)
+        )
+        tables = []
+        filestable = 'temp_files_' + rnd
+        try:
+            self.cur.execute(f'CREATE TEMPORARY TABLE {filestable}(x)')
+            tables.append(filestable)
+            self.cur.executemany(
+                f'INSERT INTO {filestable} VALUES (?)', [(a,) for a in self.args.files]
+            )
+
+            self.cur.execute(f'SELECT * FROM typeattributes WHERE file IN {filestable}')
+            for res in self.cur.fetchall():
+                r = TASet(
+                    res['file'],
+                    res['string'],
+                    res['type'],
+                    res['attrs'].split(' '),
+                    res['is_logical'],
+                )
+                self.tasets[r.type].append(r)
+                for attr in r.attrs:
+                    self.reverse_tasets[attr].append(r)
+        finally:
+            for t in tables:
+                self.cur.execute(f'DROP TABLE {t}')
 
     def search(self) -> None:
         if self.cil_from is not None:
@@ -374,28 +557,21 @@ class CilSearcher:
                 self.oargs['source'] = r.source
                 self.oargs['target'] = r.target
                 self.oargs['class'] = r.klass
-                got_all = True
-                got_any = False
-                missing_perms = []
+                self.oargs['perms'] = r.perms
+                self.update_args()
 
-                # first query all
-                self.oargs['perm'] = r.perms
-                if self.search_terule(seen):
-                    got_any = True
-                else:
-                    for perm in r.perms:
-                        self.oargs['perm'] = perm
-                        self.update_args()
-                        if self.search_terule(seen):
-                            got_any = True
-                        else:
-                            got_all = False
-                            missing_perms.append(perm)
+                got_all, got_any, missing_perms = self.search_terule(seen)
                 if got_all:
                     perms = " ".join(r.perms)
                     status = 'found'
                 elif got_any:
-                    perms = " ".join(missing_perms)
+                    mp = []
+                    for pp in r.perms:
+                        if pp in missing_perms:
+                            mp.append(f'-{pp}')
+                        else:
+                            mp.append(pp)
+                    perms = " ".join(mp)
                     status = 'some'
                 else:
                     perms = " ".join(r.perms)
@@ -407,7 +583,7 @@ class CilSearcher:
                 # Assume error during module load
                 continue
             elif e[0] == 'typetransition':
-                t: Typetransition = self.create_typetransition(e)
+                t: Typetransition = self.create_typetransition(e, 'cil_from')
                 self.oargs['subject'] = t.subject
                 self.oargs['source'] = t.source
                 self.oargs['class'] = t.klass
@@ -431,105 +607,207 @@ class CilSearcher:
             else:
                 print(f'# skip: {e}')
 
-    def search_terule(self, seen: Optional[set[str]] = None) -> bool:
-        found = False
-        if (
-            self.args.type is not None
-            and self.args.source is not None
-            and self.args.target is not None
-            and self.oargs['class'] is not None
-        ):
-            for source in self.vargs['source']:
-                for target in self.vargs['target']:
-                    trt_key = " ".join(
-                        (self.args.type, source, target, self.oargs['class'])
+    def search_terule(
+        self, seen: Optional[set[str]] = None
+    ) -> Tuple[bool, bool, Set[str]]:
+        got_all = True
+        got_any = False
+        missing_perms: Set[str] = set()
+        if self.oargs['perms'] is not None:
+            got_all = False
+            missing_perms.update(self.vargs['perms'])
+            wanted_perms = self.vargs['perms']
+
+        rnd = ''.join(
+            random.choice(string.ascii_letters + string.digits) for _ in range(16)
+        )
+        tables = []
+        filestable = 'temp_files_' + rnd
+        try:
+            self.cur.execute(f'CREATE TEMPORARY TABLE {filestable}(x)')
+            tables.append(filestable)
+            self.cur.executemany(
+                f'INSERT INTO {filestable} VALUES (?)', [(a,) for a in self.args.files]
+            )
+
+            args = []
+            query = []
+
+            if self.args.type is not None:
+                query.append('type=?')
+                args.append(self.args.type)
+
+            multivars = [
+                (
+                    self.args.source,
+                    'source',
+                ),
+                (
+                    self.args.target,
+                    'target',
+                ),
+                (
+                    self.args.not_source,
+                    'not_source',
+                ),
+                (
+                    self.args.not_target,
+                    'not_target',
+                ),
+            ]
+
+            for var, name in multivars:
+                if var is not None:
+                    table = f'temp_{name}s_' + rnd
+                    self.cur.execute(f'CREATE TEMPORARY TABLE {table}(x)')
+                    tables.append(table)
+                    self.cur.executemany(
+                        f'INSERT INTO {table} VALUES (?)',
+                        [(a,) for a in self.vargs[name]],
                     )
-                    if trt_key in self.te_rule_tree:
-                        for r in self.te_rule_tree[trt_key]:
-                            if self.search_terule_one(r, seen):
-                                found = True
-            return found
+                    query.append(f'{name} IN {table}')
 
-        for file1, rules in self.filtered.items():
-            if self.oargs['from'] is not None and (
-                self.oargs['from'].name == file1
-                or os.path.basename(self.oargs['from'].name) == os.path.basename(file1)
-            ):
-                continue
-            for e in rules:
-                if e[0] in type_enforcement_rule_types:
-                    e_str = str(e)
-                    if e_str in self.te_rules:
-                        r = self.te_rules[e_str]
-                        if self.search_terule_one(r, seen):
-                            found = True
-        return found
+            for k in ('class',):
+                query.append(f'{k}=?')
+                args.append(self.oargs[k])
 
-    def setup_terule_tree(self) -> None:
-        for file1, rules in self.filtered.items():
-            for e in rules:
-                if e[0] in type_enforcement_rule_types:
-                    e_str = str(e)
-                    r = self.te_rules.get(e_str, None)
-                    if r is None:
-                        r = self.create_terule(e, file1)
-                        self.te_rules[e_str] = r
-                    trt_key = " ".join((r.type, r.source, r.target, r.klass))
-                    self.te_rule_tree[trt_key].append(r)
-
-    def setup_tasets(self) -> None:
-        for file1, rules in self.filtered.items():
-            for e in rules:
-                if e[0] == 'typeattributeset':
-                    r = self.create_taset(e, file1)
-                    self.tasets.append(r)
-                    for attr in r.attrs:
-                        self.reverse_tasets[attr].append(r)
-
-    def search_terule_one(self, r: TERule, seen: Optional[set[str]] = None) -> bool:
-        if self.oargs['from'] is not None and (
-            self.oargs['from'].name == r.file
-            or os.path.basename(self.oargs['from'].name) == os.path.basename(r.file)
-        ):
-            return False
-        if not self.match_type_enforcement_rule(r):
-            return False
-        if seen is not None:
-            # only show each entity once
-            if r.string in seen:
-                return False
-            seen.add(r.string)
-        print(f'{r.file}:{r.string}')
-        return True
+            full_query = f'SELECT * FROM te_rules WHERE file IN {filestable}'
+            if query:
+                query.append('')
+                query.reverse()
+                args.reverse()
+                full_query = full_query + ' AND '.join(query)
+            self.cur.execute(full_query, args)
+            for res in self.cur.fetchall():
+                r = TERule(
+                    res['file'],
+                    res['string'],
+                    res['type'],
+                    res['source'],
+                    res['target'],
+                    res['class'],
+                    res['perms'].split(' '),
+                )
+                if self.oargs['from'] is not None and (
+                    self.oargs['from'].name == r.file
+                    or os.path.basename(self.oargs['from'].name)
+                    == os.path.basename(r.file)
+                ):
+                    continue
+                if seen is not None:
+                    # only show each entity once
+                    if r.string in seen:
+                        continue
+                    seen.add(r.string)
+                if self.oargs['perms'] is not None:
+                    got_perms = set(r.perms)
+                    if wanted_perms.isdisjoint(got_perms):
+                        continue
+                    got_any = True
+                    missing_perms -= got_perms
+                    if not missing_perms:
+                        got_all = True
+                else:
+                    got_any = True
+                print(f'{r.file}:{r.string}')
+            return got_all, got_any, missing_perms
+        finally:
+            for t in tables:
+                self.cur.execute(f'DROP TABLE {t}')
 
     def search_typetransition(self, seen: Optional[set[str]] = None) -> Quad:
         found = Quad.FALSE
-        for file1, rules in self.filtered.items():
-            for e in rules:
-                if e[0] == 'typetransition':
-                    e_str = str(e)
-                    r = self.typetransitions.get(e_str, None)
-                    if r is None:
-                        r = self.create_typetransition(e)
-                        self.typetransitions[e_str] = r
-                    q = self.match_typetransition(r)
-                    if q == Quad.FALSE:
+        rnd = ''.join(
+            random.choice(string.ascii_letters + string.digits) for _ in range(16)
+        )
+        tables = []
+        filestable = 'temp_files_' + rnd
+        try:
+            self.cur.execute(f'CREATE TEMPORARY TABLE {filestable}(x)')
+            tables.append(filestable)
+            self.cur.executemany(
+                f'INSERT INTO {filestable} VALUES (?)', [(a,) for a in self.args.files]
+            )
+
+            args = []
+            query = []
+
+            multivars = [
+                (self.args.source, 'source'),
+                (self.args.target, 'target'),
+                (self.args.not_source, 'not_source'),
+                (self.args.not_target, 'not_target'),
+            ]
+
+            for var, name in multivars:
+                if var is not None:
+                    table = f'temp_{name}s_' + rnd
+                    self.cur.execute(f'CREATE TEMPORARY TABLE {table}(x)')
+                    tables.append(table)
+                    self.cur.executemany(
+                        f'INSERT INTO {table} VALUES (?)',
+                        [(a,) for a in self.vargs[name]],
+                    )
+                    query.append(f'{name} IN {table}')
+
+            for k in ('class', 'subject'):
+                query.append(f'{k}=?')
+                args.append(self.oargs[k])
+
+            full_query = f'SELECT * FROM typetransitions WHERE file IN {filestable}'
+            if query:
+                query.append('')
+                query.reverse()
+                args.reverse()
+                full_query = full_query + ' AND '.join(query)
+            self.cur.execute(full_query, args)
+            for res in self.cur.fetchall():
+                r = Typetransition(
+                    res['file'],
+                    res['string'],
+                    res['subject'],
+                    res['source'],
+                    res['class'],
+                    res['target'],
+                    res['filename'],
+                )
+                if self.oargs['from'] is not None and (
+                    self.oargs['from'].name == r.file
+                    or os.path.basename(self.oargs['from'].name)
+                    == os.path.basename(r.file)
+                ):
+                    continue
+                q = self.match_typetransition(r)
+                if q == Quad.FALSE:
+                    continue
+                if seen is not None:
+                    # only show each entity once
+                    if r.string in seen:
                         continue
-                    if found in (Quad.FALSE, Quad.TRUE):
-                        # if MORE/PARTIAL set one of them
-                        # else TRUE
-                        found = q
-                    if seen is not None:
-                        # only show each entity once
-                        if e_str in seen:
-                            continue
-                        seen.add(e_str)
-                    print(f'{file1}:{e}')
-        return found
+                    seen.add(r.string)
+                print(f'{r.file}:{r.string}')
+                found = q
+            return found
+        finally:
+            for t in tables:
+                self.cur.execute(f'DROP TABLE {t}')
 
     def search_taset(self, seen: Optional[set[str]] = None) -> bool:
         found = False
-        for r in self.tasets:
+        result: set[TASet] = set()
+        if 'source' in self.vargs and self.vargs['source'] is not None:
+            for s in self.vargs['source']:
+                if s in self.reverse_tasets:
+                    tas = self.reverse_tasets[self.args.source]
+                    if tas is not None:
+                        result.update(tas)
+        if 'target' in self.vargs and self.vargs['target'] is not None:
+            for s in self.vargs['target']:
+                if s in self.tasets:
+                    tas = self.tasets[s]
+                    if tas is not None:
+                        result.update(tas)
+        for r in result:
             if not self.match_typeattributeset(r):
                 continue
             found = True
@@ -542,31 +820,20 @@ class CilSearcher:
         return found
 
     def search_resolveattr(self) -> None:
-        rset: set[str] = set()
-        for rules in self.filtered.values():
-            for e in rules:
-                if e[0] == 'typeattributeset':
-                    taset = self.create_taset(e)
-                    rset.update(set(self.resolve_typeattributeset(taset)))
-        for attr in sorted(rset):
+        result: set[str] = set()
+        if 'source' in self.vargs and self.vargs['source'] is not None:
+            for s in self.vargs['source']:
+                if s in self.reverse_tasets:
+                    result.add(s)
+                    for r in self.reverse_tasets[s]:
+                        result.update(r.attrs)
+        if 'target' in self.vargs and self.vargs['target'] is not None:
+            for t in self.vargs['target']:
+                if t in self.tasets:
+                    result.add(t)
+                    result.update([r.type for r in self.tasets[t]])
+        for attr in sorted(result):
             print(f'{attr}')
-
-    def match_type_enforcement_rule(self, rule: TERule) -> bool:
-        if self.args.type is not None and rule.type != self.args.type:
-            return False
-        if self.args.source is not None and rule.source not in self.vargs['source']:
-            return False
-        if self.args.target is not None and rule.target not in self.vargs['target']:
-            return False
-        if self.oargs['class'] is not None and rule.klass != self.oargs['class']:
-            return False
-        if self.args.perm is not None and self.args.perm not in rule.perms:
-            return False
-        if self.args.not_target is not None and rule.target in self.args.not_target:
-            return False
-        if self.args.not_source is not None and rule.source in self.args.not_source:
-            return False
-        return True
 
     def match_typeattributeset(self, taset: TASet) -> bool:
         if self.args.source is not None and self.args.source != taset.type:
@@ -594,20 +861,6 @@ class CilSearcher:
                 return Quad.FALSE
         return Quad.TRUE
 
-    def resolve_typeattributeset(self, taset: TASet) -> list[str]:
-        if taset.is_logical:
-            return []
-        result: list[str] = []
-        if self.args.source is None:
-            result.append(taset.type)
-        elif self.args.source != taset.type:
-            return []
-        if self.args.target is None:
-            result.extend(taset.attrs)
-        elif self.args.target not in taset.attrs:
-            return []
-        return result
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Parse and search cil files')
@@ -621,7 +874,7 @@ def main() -> None:
     parser.add_argument('--target', type=str)
     parser.add_argument('--not-target', type=str)
     parser.add_argument('--class', type=str)
-    parser.add_argument('--perm', type=str)
+    parser.add_argument('--perms', type=str)
     parser.add_argument('--reverse-source', action='store_true')
     parser.add_argument('--reverse-target', action='store_true')
     parser.add_argument('--from', type=argparse.FileType('r'))
