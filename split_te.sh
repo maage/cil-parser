@@ -49,18 +49,18 @@ gen_require() {
     local line="$1"; shift
     local ll l3
     (
-        # KLUDGE, seems dev_ macros miss type device_t
-        if [[ "$line" =~ ^dev_ ]]; then
-            echo "type device_t;"
-        fi
-
         if [[ "$line" =~ \(.*\) ]]; then
             # M4 macro
             line="${line#*\(}"
             line="${line%)*}"
             sed -r "${rr_str}${rr1}${rr2}" <<< "$line" | filter_require
+        elif [[ "$line" =~ ^role_transition ]]; then
+            # role_transition
+            line="${line#role_transition}"
+            # rest
+            sed -r  "${rr_str}"'s/^ *([^ ]*) ([^ ]*) ([^ ;]*);$/\1\n\2\n\3/;' <<< "$line" | filter_require
         elif [[ "$line" =~ ^type_transition ]]; then
-            # role / type_transition
+            # type_transition
             line="${line#type_transition}"
             # class
             sed -r  "${rr_str}"'s/^ *[^ ]* [^ :]*:([^ ]*) .*/class \1 getattr;/;' <<< "$line"
@@ -106,7 +106,7 @@ gen_require() {
             s/^[^ ]* //;
             s/^([^ ]*) self/\1/;
             s/ alias / /;
-            s/^([^ ]*) ([^ ]*)/\1\n\2/;
+            s/^([^ ]*) ([^ ;]*);?/\1\n\2/;
             ' <<< "$line" | filter_require
         fi
     ) | sed '
@@ -145,6 +145,7 @@ for a in "$@"; do
         fi
 
         skip=1
+        pre=
 
         # first go over different lines where we change state, but do not output
         # last go over known states and output if state allows
@@ -257,6 +258,11 @@ for a in "$@"; do
             elif [[ "$line" =~ ^[a-zA-Z0-9_]+\( ]]; then
                 # interface rules
                 skip=0
+
+                # some interfaces do not work without having other interface before it
+                case "$line" in
+                    "apache_content_alias_template("*) pre="$(printf "%s(%s\nx" apache_content_template "${line##apache_content_alias_template\(* }")" ;;
+                esac
             elif [[ "$line" =~ ^(allow|auditallow|dontaudit|neverallow|allowxperm|auditallowxperm|dontauditxperm|neverallowxperm|type_transition|role_transition)\  ]]; then
                 # rules
                 skip=0
@@ -283,7 +289,11 @@ for a in "$@"; do
         if [ "$requires" ]; then
             requires="$(printf "require {\n%s\n}\n" "$requires")"
         fi
-		printf "policy_module(%s_%d, 1.0.0)\n%s\n%s\n" "$(basename -- "$a" .te)" "$lineno" "$requires" "$line" > "$out".tmp
+        if [ "$pre" ]; then
+            # handle \n nicely
+            pre="${pre%x}"
+        fi
+		printf "policy_module(%s_%d, 1.0.0)\n%s\n%s%s\n" "$(basename -- "$a" .te)" "$lineno" "$requires" "$pre" "$line" > "$out".tmp
         if [ ! -f "$out" ] || ! cmp -s "$out".tmp "$out"; then
             mv -- "$out".tmp "$out"
         else
