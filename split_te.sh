@@ -44,7 +44,7 @@ rr1='
 s/, s0, s0 - mls_systemhigh, mcs_allcats//;
 s/, *s0 - mcs_systemhigh//;
 '
-rr2='s/[() ,{}]/\n/g;'
+rr2='s/[() ,{}~]/\n/g;'
 gen_require() {
     local line="$1"; shift
     local ll l3
@@ -72,6 +72,7 @@ gen_require() {
             # rest
             sed -r  's/^ *([^ ]*) ([^ ]*) ([^ ;]*);$/\1\n\2\n\3/;' <<< "$line" | filter_require
         else
+            line="$(sed -r 's/~//g;s/\*:[a-z_]+ \*;//;s/ -/ /g;' <<< "$line")"
             if [[ "$line" =~ :\ *\{ ]]; then
                 # handle class with group
                 local l3 l4 l2=()
