@@ -50,8 +50,8 @@ tmp/%.cil: %.pp
 %.tosum: %
 	grep -v cil_gen_require $< | sort -u > $@.tmp && mv $@.tmp $@
 
-tmp/dupes.txt: $(cil_sums)
-	sha256sum $^ | awk '{print $1}' | sort | uniq -c | egrep -v ' 1 ' | awk '{print $2}' > $@.tmp && mv $@.tmp $@
+tmp/dupes.txt: tmp/sums.txt
+	awk '{print $1}' tmp/sums.txt | sort | uniq -c | egrep -v ' 1 ' | awk '{print $2}' > $@.tmp && mv $@.tmp $@
 
 tmp/sums.txt: $(cil_sums)
 	sha256sum $^ > $@.tmp && mv $@.tmp $@
