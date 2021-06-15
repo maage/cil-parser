@@ -311,6 +311,9 @@ class CilSearcher:
         self.con = con
 
     def refresh_cache(self) -> None:
+        if self.args.from_all_known:
+            return
+
         cur = self.cur
 
         cur.execute('BEGIN EXCLUSIVE TRANSACTION')
@@ -512,15 +515,23 @@ class CilSearcher:
             random.choice(string.ascii_letters + string.digits) for _ in range(16)
         )
         tables = []
-        filestable = 'temp_files_' + rnd
         try:
-            self.cur.execute(f'CREATE TEMPORARY TABLE {filestable}(x)')
-            tables.append(filestable)
-            self.cur.executemany(
-                f'INSERT INTO {filestable} VALUES (?)', [(a,) for a in self.args.files]
-            )
+            args = []
+            query = []
 
-            self.cur.execute(f'SELECT * FROM typeattributes WHERE file IN {filestable}')
+            if not self.args.from_all_known:
+                table = 'temp_files_' + rnd
+                self.cur.execute(f'CREATE TEMPORARY TABLE {table}(x)')
+                tables.append(table)
+                self.cur.executemany(
+                    f'INSERT INTO {table} VALUES (?)', [(a,) for a in self.args.files]
+                )
+                query.append(f'file IN {table}')
+
+            full_query = f'SELECT * FROM typeattributes'
+            if query:
+                full_query = full_query + ' WHERE ' + ' AND '.join(query)
+
             for res in self.cur.fetchall():
                 r = TASet(
                     res['file'],
@@ -622,16 +633,18 @@ class CilSearcher:
             random.choice(string.ascii_letters + string.digits) for _ in range(16)
         )
         tables = []
-        filestable = 'temp_files_' + rnd
         try:
-            self.cur.execute(f'CREATE TEMPORARY TABLE {filestable}(x)')
-            tables.append(filestable)
-            self.cur.executemany(
-                f'INSERT INTO {filestable} VALUES (?)', [(a,) for a in self.args.files]
-            )
-
             args = []
             query = []
+
+            if not self.args.from_all_known:
+                table = 'temp_files_' + rnd
+                self.cur.execute(f'CREATE TEMPORARY TABLE {table}(x)')
+                tables.append(table)
+                self.cur.executemany(
+                    f'INSERT INTO {table} VALUES (?)', [(a,) for a in self.args.files]
+                )
+                query.append(f'file IN {table}')
 
             if self.args.type is not None:
                 query.append('type=?')
@@ -671,12 +684,9 @@ class CilSearcher:
                 query.append(f'{k}=?')
                 args.append(self.oargs[k])
 
-            full_query = f'SELECT * FROM te_rules WHERE file IN {filestable}'
+            full_query = f'SELECT * FROM te_rules'
             if query:
-                query.append('')
-                query.reverse()
-                args.reverse()
-                full_query = full_query + ' AND '.join(query)
+                full_query = full_query + ' WHERE ' + ' AND '.join(query)
             self.cur.execute(full_query, args)
             for res in self.cur.fetchall():
                 r = TERule(
@@ -723,14 +733,17 @@ class CilSearcher:
         tables = []
         filestable = 'temp_files_' + rnd
         try:
-            self.cur.execute(f'CREATE TEMPORARY TABLE {filestable}(x)')
-            tables.append(filestable)
-            self.cur.executemany(
-                f'INSERT INTO {filestable} VALUES (?)', [(a,) for a in self.args.files]
-            )
-
             args = []
             query = []
+
+            if not self.args.from_all_known:
+                table = 'temp_files_' + rnd
+                self.cur.execute(f'CREATE TEMPORARY TABLE {table}(x)')
+                tables.append(table)
+                self.cur.executemany(
+                    f'INSERT INTO {table} VALUES (?)', [(a,) for a in self.args.files]
+                )
+                query.append(f'file IN {table}')
 
             multivars = [
                 (self.args.source, 'source'),
@@ -754,12 +767,9 @@ class CilSearcher:
                 query.append(f'{k}=?')
                 args.append(self.oargs[k])
 
-            full_query = f'SELECT * FROM typetransitions WHERE file IN {filestable}'
+            full_query = f'SELECT * FROM typetransitions'
             if query:
-                query.append('')
-                query.reverse()
-                args.reverse()
-                full_query = full_query + ' AND '.join(query)
+                full_query = full_query + ' WHERE ' + ' AND '.join(query)
             self.cur.execute(full_query, args)
             for res in self.cur.fetchall():
                 r = Typetransition(
@@ -864,7 +874,9 @@ class CilSearcher:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Parse and search cil files')
-    parser.add_argument('files', metavar='FILES', type=str, nargs='+')
+    files_group = parser.add_mutually_exclusive_group(required=True)
+    files_group.add_argument('files', metavar='FILES', type=str, nargs='*', default=[])
+    files_group.add_argument('--from-all-known', action='store_true')
     type_group = parser.add_mutually_exclusive_group()
     type_group.add_argument('--type', choices=type_enforcement_rule_types)
     type_group.add_argument('--attr', action='store_true')
