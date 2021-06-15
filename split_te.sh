@@ -14,7 +14,7 @@ s/^ *//;
 s/ *$//;
 s/;$//;
 /^ZZZ$/d;
-/^(dir|file|sock_file)$/d;
+/^(dir|file|sock_file|self)$/d;
 ' | sed -r '
 /./!d;
 /_r$/{
@@ -43,6 +43,7 @@ rr_str='s/ *"[^"]*" */ /;'
 rr1='
 s/, s0, s0 - mls_systemhigh, mcs_allcats//;
 s/, *s0 - mcs_systemhigh//;
+s/, mcs_systemhigh//;
 '
 rr2='s/[() ,{}~]/\n/g;'
 gen_require() {
