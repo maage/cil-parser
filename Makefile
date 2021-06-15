@@ -40,8 +40,7 @@ myclean: clean
 # rules
 
 tmp/_cache: $(PROG) $(exports)
-	@printf "%s export/*.cil tmp/*.cil\n" $(PROG)
-	@$(PROG) $(exports) > /dev/null
+	@$(PROG) $(exports)
 	@touch -- $@
 
 tmp/%.cil: %.pp
