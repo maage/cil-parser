@@ -720,7 +720,12 @@ class CilSearcher:
                     == os.path.basename(r.file)
                 ):
                     continue
-                seen_key = ' '.join((r.file, r.string,))
+                seen_key = ' '.join(
+                    (
+                        r.file,
+                        r.string,
+                    )
+                )
                 if seen is not None:
                     # only show each entity once
                     if seen_key in seen:
@@ -806,7 +811,12 @@ class CilSearcher:
                 q = self.match_typetransition(r)
                 if q == Quad.FALSE:
                     continue
-                seen_key = ' '.join((r.file, r.string,))
+                seen_key = ' '.join(
+                    (
+                        r.file,
+                        r.string,
+                    )
+                )
                 if seen is not None:
                     # only show each entity once
                     if seen_key in seen:
@@ -838,7 +848,12 @@ class CilSearcher:
             if not self.match_typeattributeset(r):
                 continue
             found = True
-            seen_key = ' '.join((r.file, r.string,))
+            seen_key = ' '.join(
+                (
+                    r.file,
+                    r.string,
+                )
+            )
             if seen is not None:
                 # only show each entity once
                 if seen_key in seen:
