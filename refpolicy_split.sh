@@ -13,6 +13,11 @@ while IFS='' read -d '' -r a && [ "$a" ]; do
     [ ! -f "$err" ] || continue
     rm -rf split_lines
     ./split_te.sh "$a"
+    make tmp/all_interfaces.conf
+    if [ -f "$D"/tmp/all_interfaces.conf ]; then
+        cp "$D"/tmp/all_interfaces.conf tmp/all_interfaces.conf
+        touch tmp/all_interfaces.conf
+    fi
     make -j"$(nproc)" -k || make -j"$(nproc)"  # || { touch "$err"; continue; }
     touch "$ok"
 done < <(find "$D" -name '*.te' -type f -print0 | shuf -z)
