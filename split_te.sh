@@ -260,7 +260,7 @@ for a in "$@"; do
                 exit 1
             fi
         elif [[ "$line" =~ \'\) ]]; then
-            if [[ "$line" =~ ^\'\)$ ]]; then
+            if [[ "$line" =~ ^\'\)(\ *dnl\ .*)?$ ]]; then
                 if (( depth == 0 )); then
                     printf "${state[$depth]:-} depth < 0: error(%s:%d): %s\n" "$a" "$lineno" "$line"
                     exit 1
