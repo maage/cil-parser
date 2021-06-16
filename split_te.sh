@@ -298,15 +298,15 @@ for a in "$@"; do
                 printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-        elif [[ "$line" =~ ^(gen_tunable|policy_module)\([^\)]*\)$ ]]; then
+        elif [[ "$line" =~ ^(gen_bool|gen_tunable|policy_module)\([^\)]*\)$ ]]; then
             :
         elif [[ "$line" =~ ^# ]]; then
             :
         elif [ "${state[$depth]}" = true ]; then
-            if [[ "$line" =~ ^(type|attribute|role|typeattribute|typealias|class|attribute_role|roleattribute)\  ]]; then
+            if [[ "$line" =~ ^(attribute_role|attribute|bool|class|roleattribute|role|typealias|typeattribute|type)\  ]]; then
                 # definitions skipped
                 :
-            elif [[ "$line" =~ ^(sid|portcon|fs_use_trans|genfscon|fs_use_xattr|fs_use_task)\  ]]; then
+            elif [[ "$line" =~ ^(fs_use_task|fs_use_trans|fs_use_xattr|genfscon|portcon|sid)\  ]]; then
                 # maybe could handle these, but they are used only on /kernel/
                 :
             elif [[ "$line" =~ ^[a-zA-Z0-9_]+\( ]]; then
@@ -317,7 +317,10 @@ for a in "$@"; do
                 case "$line" in
                     "apache_content_alias_template("*) pre="$(sed -r 's/^apache_content_alias_template\( */apache_content_template(/;s/[ ,].*/)/' <<< "$line")" ;;
                 esac
-            elif [[ "$line" =~ ^(allow|auditallow|dontaudit|neverallow|allowxperm|auditallowxperm|dontauditxperm|neverallowxperm|type_transition|role_transition)\  ]]; then
+            elif [[ "$line" =~ ^(allow|auditallow|dontaudit|neverallow|allowxperm|auditallowxperm|dontauditxperm|neverallowxperm)\  ]]; then
+                # rules
+                skip=0
+            elif [[ "$line" =~ ^(role_transition|type_transition)\  ]]; then
                 # rules
                 skip=0
             else
