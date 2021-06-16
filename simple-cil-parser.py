@@ -340,8 +340,9 @@ class CilSearcher:
                     'SELECT file FROM files WHERE file=:file AND mtime_us == :mtime_us',
                     {'file': file1, 'mtime_us': mtime_us},
                 )
-                for res in cur.fetchall():
+                for _ in cur.fetchall():
                     need_update = False
+                    break
 
             if not need_update:
                 # file was removed/updated in meantime
@@ -533,7 +534,6 @@ class CilSearcher:
         )
         tables = []
         try:
-            args = []
             query = []
 
             if not self.args.from_all_known:
@@ -545,10 +545,11 @@ class CilSearcher:
                 )
                 query.append(f'file IN {table}')
 
-            full_query = f'SELECT * FROM typeattributes'
+            full_query = 'SELECT * FROM typeattributes'
             if query:
                 full_query = full_query + ' WHERE ' + ' AND '.join(query)
 
+            self.cur.execute(full_query)
             for res in self.cur.fetchall():
                 r = TASet(
                     res['file'],
@@ -702,7 +703,7 @@ class CilSearcher:
                 query.append(f'{k}=?')
                 args.append(self.oargs[k])
 
-            full_query = f'SELECT * FROM te_rules'
+            full_query = 'SELECT * FROM te_rules'
             if query:
                 full_query = full_query + ' WHERE ' + ' AND '.join(query)
             self.cur.execute(full_query, args)
@@ -750,7 +751,6 @@ class CilSearcher:
             random.choice(string.ascii_letters + string.digits) for _ in range(16)
         )
         tables = []
-        filestable = 'temp_files_' + rnd
         try:
             args = []
             query = []
@@ -786,7 +786,7 @@ class CilSearcher:
                 query.append(f'{k}=?')
                 args.append(self.oargs[k])
 
-            full_query = f'SELECT * FROM typetransitions'
+            full_query = 'SELECT * FROM typetransitions'
             if query:
                 full_query = full_query + ' WHERE ' + ' AND '.join(query)
             self.cur.execute(full_query, args)
