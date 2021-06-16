@@ -161,7 +161,11 @@ for a in "$@"; do
                 state["$depth"]="${state[$(((depth-1)))]}"
                 branch["$depth"]="${state[$depth]}"
             else
-                printf "${state[$depth]} bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                printf "${state[$depth]:-} bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
+            if [ ! "${state[$depth]:-}" ]; then
+                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
         elif [[ "$line" =~ ^(ifdef|ifndef)\( ]]; then
@@ -184,9 +188,21 @@ for a in "$@"; do
                 state["$depth"]=false
                 branch["$depth"]="${state[$(((depth-1)))]}"
             elif [[ "$line" =~ ^ifdef\(\`[^\)]*\',\ *\`define\([^\)]*\)\'\)$ ]]; then
-                :
+                # immediately back depth
+                unset struct["$depth"]
+                unset state["$depth"]
+                unset branch["$depth"]
+                (( depth-- )) || :
+                if [ ! "${state[$depth]:-}" ]; then
+                    printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                    exit 1
+                fi
             else
-                printf "${state[$depth]} ifdef error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                printf "${state[$depth]:-} ifdef error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
+            if [ ! "${state[$depth]:-}" ]; then
+                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
         elif [[ "$line" =~ ^(tunable_policy)\( ]]; then
@@ -196,7 +212,11 @@ for a in "$@"; do
                 state["$depth"]="${state[$(((depth-1)))]}"
                 branch["$depth"]="${state[$depth]}"
             else
-                printf "${state[$depth]} bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                printf "${state[$depth]:-} bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
+            if [ ! "${state[$depth]:-}" ]; then
+                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
         elif [[ "$line" =~ ^require\ *\{$ ]]; then
@@ -204,50 +224,70 @@ for a in "$@"; do
             struct["$depth"]="{}"
             state["$depth"]=false
             branch["$depth"]="${state[$(((depth-1)))]}"
+            if [ ! "${state[$depth]:-}" ]; then
+                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
         elif [[ "$line" =~ ^if\([^\)]*\)\ *\{$ ]]; then
             (( depth++ )) || :
             struct["$depth"]="{}"
             state["$depth"]=false
             branch["$depth"]="${state[$(((depth-1)))]}"
+            if [ ! "${state[$depth]:-}" ]; then
+                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
         elif [ "$line" = "}" ]; then
             if (( depth == 0 )); then
-                printf "${state[$depth]} depth < 0: error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                printf "${state[$depth]:-} depth < 0: error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
             if [ "${struct[$depth]}" != "{}" ]; then
-                printf "${state[$depth]} bogus }: error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                printf "${state[$depth]:-} bogus }: error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
             unset struct["$depth"]
             unset state["$depth"]
             unset branch["$depth"]
             (( depth-- )) || :
+            if [ ! "${state[$depth]:-}" ]; then
+                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
         elif [[ "$line" =~ \'\) ]]; then
             if [[ "$line" =~ ^\'\)$ ]]; then
                 if (( depth == 0 )); then
-                    printf "${state[$depth]} depth < 0: error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                    printf "${state[$depth]:-} depth < 0: error(%s:%d): %s\n" "$a" "$lineno" "$line"
                     exit 1
                 fi
                 if [ "${struct[$depth]}" != "()" ]; then
-                    printf "${state[$depth]} bogus ): error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                    printf "${state[$depth]:-} bogus ): error(%s:%d): %s\n" "$a" "$lineno" "$line"
                     exit 1
                 fi
             else
-                printf "${state[$depth]} bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                printf "${state[$depth]:-} bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
             unset struct["$depth"]
             unset state["$depth"]
             unset branch["$depth"]
             (( depth-- )) || :
+            if [ ! "${state[$depth]:-}" ]; then
+                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
         elif [[ "$line" =~ ^\',\ *\`$ ]]; then
             if [ "${struct[$depth]}" != "()" ]; then
-                printf "${state[$depth]} bogus ,: error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                printf "${state[$depth]:-} bogus ,: error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
             tmp="${state[$depth]}"
             state["$depth"]="${branch[$depth]}"
             branch["$depth"]="$tmp"
+            if [ ! "${state[$depth]:-}" ]; then
+                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
         elif [[ "$line" =~ ^(gen_tunable|policy_module)\([^\)]*\)$ ]]; then
             :
         elif [[ "$line" =~ ^# ]]; then
@@ -271,13 +311,13 @@ for a in "$@"; do
                 # rules
                 skip=0
             else
-                printf "${state[$depth]} unk error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                printf "${state[$depth]:-} unk error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
         elif [ "${state[$depth]}" = false ]; then
             :
         else
-            printf "${state[$depth]} unk error(%s:%d): %s\n" "$a" "$lineno" "$line"
+            printf "${state[$depth]:-} unk error(%s:%d): %s\n" "$a" "$lineno" "$line"
             exit 1
         fi
 
