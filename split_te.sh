@@ -13,8 +13,8 @@ filter_require() {
 s/^ *//;
 s/ *$//;
 s/;$//;
-/^ZZZ$/d;
-/^(dir|file|sock_file|self)$/d;
+/^(dir|file|sock_file|self|[a-z_]*_class_set|\*)$/d;
+/^(mcs_system(low|high)|mcs_allcats|mls_systemhigh|s0)$/d;
 ' | sed -r '
 /./!d;
 /_r$/{
@@ -40,12 +40,7 @@ s/^/attribute /;
 
 # generate require content for a line
 rr_str='s/ *"[^"]*" */ /;'
-rr1='
-s/, s0, s0 - mls_systemhigh, mcs_allcats//;
-s/, *s0 - mcs_systemhigh//;
-s/, mcs_systemhigh//;
-'
-rr2='s/[() ,{}~]/\n/g;'
+rr2='s/ -/ /g;s/[() ,{}~]/\n/g;'
 gen_require() {
     local line="$1"; shift
     local ll l3
@@ -64,7 +59,7 @@ gen_require() {
             esac
             line="${line#*\(}"
             line="${line%)*}"
-            sed -r "${rr_str}${rr1}${rr2}" <<< "$line" | filter_require
+            sed -r "${rr_str}${rr2}" <<< "$line" | filter_require
         elif [[ "$line" =~ ^role_transition ]]; then
             # role_transition
             line="${line#role_transition}"
@@ -76,14 +71,14 @@ gen_require() {
             # class
             sed -r  "${rr_str}"'s/^ *[^ ]* [^ :]*:([^ ]*) .*/class \1 getattr;/;' <<< "$line"
             # rest
-            sed -r  "${rr_str}"'s/^ *([^ ]*) ([^ :]*):[^ ]* ([^ ;]*);$/\1\n\2\n\3/;' <<< "$line" | filter_require
+            sed -r  "${rr_str}"'s/^ *([^ ]*) ([^ :]*):[^ ]* ([^ ;]*) *;*$/\1\n\2\n\3/;' <<< "$line" | filter_require
         elif [[ "$line" =~ ^role_transition ]]; then
             # role / type_transition
             line="${line#role_transition}"
             # rest
             sed -r  's/^ *([^ ]*) ([^ ]*) ([^ ;]*);$/\1\n\2\n\3/;' <<< "$line" | filter_require
         else
-            line="$(sed -r 's/~//g;s/\*:[a-z_]+ \*;//;s/ -/ /g;' <<< "$line")"
+            line="$(sed -r 's/~//g;s/\*:[a-z_]+ +\*;//;s/ +-/ /g;' <<< "$line")"
             if [[ "$line" =~ :\ *\{ ]]; then
                 # handle class with group
                 local l3 l4 l2=()
@@ -110,14 +105,14 @@ gen_require() {
                     printf "%s\n" "${ll%%\}*}" | sed 's/ /\n/g;' | filter_require
                     ll="${ll#*\}}"
                 done
-                line="$(sed -r 's/[{][^}]*[}]/ZZZ/g;' <<< "$line")"
+                line="$(sed -r 's/[{][^}]*[}]/*/g;' <<< "$line")"
             fi
             # sed -r 's/^[^ ]* [^ ]* [^ ]*:(.*;)$/class \1/;' <<< "$line"
             sed -r '
-            s/^[^ ]* //;
-            s/^([^ ]*) self/\1/;
-            s/ alias / /;
-            s/^([^ ]*) ([^ ;]*);?/\1\n\2/;
+            s/^[^ ]* +//;
+            s/^([^ ]*) +self/\1/;
+            s/ +alias +/ /;
+            s/^([^ ]*) +([^ ;]*);?/\1\n\2/;
             ' <<< "$line" | filter_require
         fi
     ) | sed '
