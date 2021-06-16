@@ -271,8 +271,7 @@ class CilSearcher:
         )
         cur.execute(
             '''CREATE TABLE IF NOT EXISTS te_rules
-            ( id INTEGER PRIMARY KEY AUTOINCREMENT
-            , file TEXT
+            ( file TEXT NOT NULL
             , string TEXT NOT NULL
             , type TEXT NOT NULL
             , source TEXT NOT NULL
@@ -284,8 +283,7 @@ class CilSearcher:
         )
         cur.execute(
             '''CREATE TABLE IF NOT EXISTS typeattributes
-            ( id INTEGER PRIMARY KEY AUTOINCREMENT
-            , file TEXT
+            ( file TEXT NOT NULL
             , string TEXT NOT NULL
             , type TEXT NOT NULL
             , attrs TEXT NOT NULL
@@ -295,8 +293,7 @@ class CilSearcher:
         )
         cur.execute(
             '''CREATE TABLE IF NOT EXISTS typetransitions
-            ( id INTEGER PRIMARY KEY AUTOINCREMENT
-            , file TEXT
+            ( file TEXT NOT NULL
             , string TEXT NOT NULL
             , subject TEXT NOT NULL
             , source TEXT NOT NULL
