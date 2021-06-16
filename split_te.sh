@@ -52,6 +52,16 @@ gen_require() {
     (
         if [[ "$line" =~ \(.*\) ]]; then
             # M4 macro
+            # KLUDGE some domain_templates
+            case "$line" in
+                "cron_admin_role("*) line="${line%)}""_t)" ;;
+                "cron_common_crontab_template("*) line="${line%)}""_t)" ;;
+                "cron_role("*) line="${line%)}""_t)" ;;
+                "piranha_domain_template("*) line="$(sed -r 's/\((.*)\)/(piranha_\1_t)/' <<< "$line")" ;;
+                "postfix_server_domain_template("*) line="${line%(*)}""(foo_t)" ;;
+                "qmail_child_domain_template("*) line="$(sed -r 's/\(([^ ]*),/(\1_t,/' <<< "$line")" ;;
+                "ssh_server_template"*) line="${line%)}""_t)" ;;
+            esac
             line="${line#*\(}"
             line="${line%)*}"
             sed -r "${rr_str}${rr1}${rr2}" <<< "$line" | filter_require
