@@ -315,7 +315,7 @@ for a in "$@"; do
 
                 # some interfaces do not work without having other interface before it
                 case "$line" in
-                    "apache_content_alias_template("*) pre="$(printf "%s(%s\nx" apache_content_template "${line##apache_content_alias_template\(* }")" ;;
+                    "apache_content_alias_template("*) pre="$(sed -r 's/^apache_content_alias_template\( */apache_content_template(/;s/[ ,].*/)/' <<< "$line")" ;;
                 esac
             elif [[ "$line" =~ ^(allow|auditallow|dontaudit|neverallow|allowxperm|auditallowxperm|dontauditxperm|neverallowxperm|type_transition|role_transition)\  ]]; then
                 # rules
@@ -345,6 +345,7 @@ for a in "$@"; do
         fi
         if [ "$pre" ]; then
             # handle \n nicely
+            pre="$(printf "%s\nx" "$pre")"
             pre="${pre%x}"
         fi
 		printf "policy_module(%s_%d, 1.0.0)\n%s\n%s%s\n" "$(basename -- "$a" .te)" "$lineno" "$requires" "$pre" "$line" > "$out".tmp
