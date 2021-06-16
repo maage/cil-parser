@@ -317,8 +317,6 @@ class CilSearcher:
 
         cur = self.cur
 
-        cur.execute('BEGIN EXCLUSIVE TRANSACTION')
-
         files_no_need_to_update = set()
         for file1 in self.args.files:
             if os.path.exists(file1):
@@ -332,6 +330,24 @@ class CilSearcher:
         files_to_update = set(self.args.files) - files_no_need_to_update
         # print(f'# files_to_update: {files_to_update}')
         for idx, file1 in enumerate(files_to_update):
+            cur.execute('BEGIN EXCLUSIVE TRANSACTION')
+
+            need_update = False
+            if os.path.exists(file1):
+                need_update = True
+                mtime_us = int(os.path.getmtime(file1) * 1000000)
+                cur.execute(
+                    'SELECT file FROM files WHERE file=:file AND mtime_us == :mtime_us',
+                    {'file': file1, 'mtime_us': mtime_us},
+                )
+                for res in cur.fetchall():
+                    need_update = False
+
+            if not need_update:
+                # file was removed/updated in meantime
+                self.con.commit()
+                continue
+
             print(f'# {idx+1}/{len(files_to_update)} {file1}')
             with open(file1, 'r') as fd:
                 tree = grammar.parse(fd.read())
@@ -421,7 +437,7 @@ class CilSearcher:
                     ''',
                     {'file': file1, 'mtime_us': mtime_us},
                 )
-        self.con.commit()
+            self.con.commit()
 
     def load(self) -> None:
         self.setup_cache()
