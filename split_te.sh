@@ -157,6 +157,9 @@ for a in "$@"; do
             if [[ "$line" =~ ^(gen_require|optional_policy)\(\`$ ]]; then
                 state["$depth"]="${state[$(((depth-1)))]}"
                 branch["$depth"]="${state[$depth]}"
+            elif [[ "$line" =~ ^(gen_require)\(\`[^\']*\'\)$ ]]; then
+                state["$depth"]="${state[$(((depth-1)))]}"
+                branch["$depth"]="${state[$depth]}"
             else
                 printf "${state[$depth]} bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
