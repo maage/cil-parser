@@ -48,7 +48,8 @@ from parsimonious.grammar import Grammar
 from parsimonious.nodes import Node
 
 
-ParsedCil = List[List[Union[str, List[Any]]]]
+CilExpression = List[Union[str, List[Any]]]
+ParsedCil = List[CilExpression]
 
 
 grammar = Grammar(
@@ -161,7 +162,7 @@ class TERule:
         )
 
     @classmethod
-    def fromexpr(cls, e: List[Union[str, List[Any]]], file: str) -> "TERule":
+    def fromexpr(cls, e: CilExpression, file: str) -> "TERule":
         # Do first full assert of the type and then create Rule
         assert isinstance(e, list)
         assert len(e) == 4
@@ -205,7 +206,7 @@ class TASet:
         )
 
     @classmethod
-    def fromexpr(cls, e: List[Union[str, List[Any]]], file: str) -> "TASet":
+    def fromexpr(cls, e: CilExpression, file: str) -> "TASet":
         assert isinstance(e, list)
         assert len(e) == 3
         assert isinstance(e[0], str)
@@ -252,7 +253,7 @@ class Typetransition:
         )
 
     @classmethod
-    def fromexpr(cls, e: List[Union[str, List[Any]]], file: str) -> "Typetransition":
+    def fromexpr(cls, e: CilExpression, file: str) -> "Typetransition":
         assert isinstance(e, list)
         assert len(e) >= 5
         assert isinstance(e[0], str)
