@@ -512,7 +512,7 @@ class CilSearcher:
     def handle_from_arg(self) -> None:
         from_file = self.oargs['from']
         if from_file is not None:
-            print(f'# {1}/{1} {from_file}')
+            print(f'# {1}/{1} {from_file.name}')
             tree = grammar.parse(from_file.read())
             cil_from = cilp.visit(tree)
             self.cil_from = self.handle_file(cil_from)
