@@ -8,9 +8,9 @@ split_lines = $(wildcard split_lines/*.te)
 
 pp_split_lines = $(split_lines:split_lines/%.te=%.pp)
 split_lines_log = $(split_lines:split_lines/%.te=tmp/%.log)
-cil_sums = $(tmp_cils:%=%.tosum)
 tmp_cils = $(split_lines:split_lines/%.te=tmp/%.cil)
 exports += $(tmp_cils)
+cil_sums = $(tmp_cils:%=%.tosum)
 
 # phony targets
 
@@ -53,7 +53,11 @@ tmp/dupes.txt: tmp/sums.txt
 	awk '{print $$1}' tmp/sums.txt | sort | uniq -c | egrep -v ' 1 ' | awk '{print $$2}' > $@.tmp && mv -- $@.tmp $@
 
 tmp/sums.txt: $(cil_sums)
+ifeq ($(cil_sums),)
+	touch $@
+else
 	sha256sum $^ > $@.tmp && mv -- $@.tmp $@
+endif
 
 dupes.txt: tmp/dupes.txt tmp/sums.txt
 	./generate_dupes.sh > $@.tmp && mv -- $@.tmp $@
