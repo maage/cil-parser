@@ -44,25 +44,25 @@ tmp/_cache: $(PROG) $(exports)
 	@touch -- $@
 
 tmp/%.cil: %.pp
-	/usr/libexec/selinux/hll/pp < $< > $@
+	/usr/libexec/selinux/hll/pp < $< > $@.tmp && mv -- $@.tmp $@
 
 %.tosum: %
-	grep -v cil_gen_require $< | sort -u > $@.tmp && mv $@.tmp $@
+	grep -v cil_gen_require $< | sort -u > $@.tmp && mv -- $@.tmp $@
 
 tmp/dupes.txt: tmp/sums.txt
-	awk '{print $1}' tmp/sums.txt | sort | uniq -c | egrep -v ' 1 ' | awk '{print $2}' > $@.tmp && mv $@.tmp $@
+	awk '{print $$1}' tmp/sums.txt | sort | uniq -c | egrep -v ' 1 ' | awk '{print $$2}' > $@.tmp && mv -- $@.tmp $@
 
 tmp/sums.txt: $(cil_sums)
-	sha256sum $^ > $@.tmp && mv $@.tmp $@
+	sha256sum $^ > $@.tmp && mv -- $@.tmp $@
 
 dupes.txt: tmp/dupes.txt tmp/sums.txt
-	./generate_dupes.sh > $@.tmp && mv $@.tmp $@
+	./generate_dupes.sh > $@.tmp && mv -- $@.tmp $@
 
 tmp/%.log: tmp/%.cil tmp/_cache
-	$(PROG) --from-all-known --from $< > $@.tmp && mv $@.tmp $@
+	$(PROG) --from-all-known --from $< > $@.tmp && mv -- $@.tmp $@
 
 status.txt: $(split_lines_log)
-	./generate_status.sh $^ > $@.tmp && mv $@.tmp $@
+	./generate_status.sh $^ > $@.tmp && mv -- $@.tmp $@
 
 # selinux
 
