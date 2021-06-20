@@ -292,6 +292,7 @@ class CilSearcher:
         self.update_args()
         self.con: Optional[sqlite3.Connection] = None
         self.cur: Optional[sqlite3.Cursor] = None
+        self.files: List[str] = []
 
     def update_args(self) -> None:
         self.oargs = vars(self.args)
@@ -381,11 +382,17 @@ class CilSearcher:
         assert self.cur is not None
 
         if self.args.from_all_known:
+            self.cur.execute('SELECT file FROM files')
+            for res in self.cur.fetchall():
+                file1 = res[0]
+                if os.path.exists(file1):
+                    self.files.append(file1)
             return
 
         files_no_need_to_update = set()
-        for file1 in self.args.files:
+        for file1 in self.files:
             if os.path.exists(file1):
+                self.files.append(file1)
                 mtime_us = int(os.path.getmtime(file1) * 1000000)
                 self.cur.execute(
                     '''
@@ -396,7 +403,7 @@ class CilSearcher:
                 )
                 for res in self.cur.fetchall():
                     files_no_need_to_update.add(res[0])
-        files_to_update = set(self.args.files) - files_no_need_to_update
+        files_to_update = set(self.files) - files_no_need_to_update
         # print(f'# files_to_update: {files_to_update}')
         for idx, file1 in enumerate(files_to_update):
             self.cur.execute('BEGIN EXCLUSIVE TRANSACTION')
@@ -566,14 +573,13 @@ class CilSearcher:
         args: List[str] = []
         query: List[str] = []
 
-        if not self.args.from_all_known:
-            table = 'temp_files_' + rnd
-            self.cur.execute(f'CREATE TEMPORARY TABLE {table}(x)')
-            tables.append(table)
-            self.cur.executemany(
-                f'INSERT INTO {table} VALUES (?)', [(a,) for a in self.args.files]
-            )
-            query.append(f'file IN {table}')
+        table = 'temp_files_' + rnd
+        self.cur.execute(f'CREATE TEMPORARY TABLE {table}(x)')
+        tables.append(table)
+        self.cur.executemany(
+            f'INSERT INTO {table} VALUES (?)', [(a,) for a in self.files]
+        )
+        query.append(f'file IN {table}')
 
         for var, name in multivars:
             if var is not None:
