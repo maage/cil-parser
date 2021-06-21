@@ -390,7 +390,7 @@ class CilSearcher:
             return
 
         files_no_need_to_update = set()
-        for file1 in self.files:
+        for file1 in self.args.files:
             if os.path.exists(file1):
                 self.files.append(file1)
                 mtime_us = int(os.path.getmtime(file1) * 1000000)
