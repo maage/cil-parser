@@ -131,7 +131,7 @@ for a in "$@"; do
     done < <(find "$D" -type f -name "$(basename -- "$a" .te)_*.te" -print0)
 
     changes=0
-	lineno=0
+    lineno=0
     # depth increases if we go inside of ( or { and decreases if ) or }
     depth=0
     # if state is true, then print, if false, not
@@ -140,8 +140,8 @@ for a in "$@"; do
     branch=(true)
     # type of structure we are currently in, "", {}, ()
     struct=("")
-	while read -r line; do
-		(( lineno++ )) || :
+    while read -r line; do
+        (( lineno++ )) || :
         # printf "$state (%s:%d): (%s:%d) %s\n" "$a" "$lineno" "${state[*]}" "$depth" "$line"
 
         out="$D"/"$(basename -- "$a" .te)"_"$lineno".te
@@ -348,14 +348,14 @@ for a in "$@"; do
             pre="$(printf "%s\nx" "$pre")"
             pre="${pre%x}"
         fi
-		printf "policy_module(%s_%d, 1.0.0)\n%s\n%s%s\n" "$(basename -- "$a" .te)" "$lineno" "$requires" "$pre" "$line" > "$out".tmp
+        printf "policy_module(%s_%d, 1.0.0)\n%s\n%s%s\n" "$(basename -- "$a" .te)" "$lineno" "$requires" "$pre" "$line" > "$out".tmp
         if [ ! -f "$out" ] || ! cmp -s "$out".tmp "$out"; then
             mv -- "$out".tmp "$out"
             changes=1
         else
             outdel+=("$out".tmp)
         fi
-	done < <(sed -r 's/^[[:space:]]*//;s/[[:space:]]*#.*//' "$a")
+    done < <(sed -r 's/^[[:space:]]*//;s/[[:space:]]*#.*//' "$a")
 
     if (( changes )); then
         # If any of the files change, then we need to be sure there is no leftovers of old files
