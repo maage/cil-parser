@@ -123,12 +123,14 @@ gen_require() {
 
 declare -A old_files=()
 outdel=()
+tmpdel=()
 
 for a in "$@"; do
     while IFS= read -d '' -r old && [ "$old" ]; do
         old_files["$old"]=1
     done < <(find "$D" -type f -name "$(basename -- "$a" .te)_*.te" -print0)
 
+    changes=0
 	lineno=0
     # depth increases if we go inside of ( or { and decreases if ) or }
     depth=0
@@ -349,10 +351,16 @@ for a in "$@"; do
 		printf "policy_module(%s_%d, 1.0.0)\n%s\n%s%s\n" "$(basename -- "$a" .te)" "$lineno" "$requires" "$pre" "$line" > "$out".tmp
         if [ ! -f "$out" ] || ! cmp -s "$out".tmp "$out"; then
             mv -- "$out".tmp "$out"
+            changes=1
         else
             outdel+=("$out".tmp)
         fi
 	done < <(sed -r 's/^[[:space:]]*//;s/[[:space:]]*#.*//' "$a")
+
+    if (( changes )); then
+        # If any of the files change, then we need to be sure there is no leftovers of old files
+        find tmp -type f -name "$(basename "$a" .te)_*" -delete
+    fi
 done
 
 if (( ${#outdel[@]} + ${#old_files[@]} )); then
