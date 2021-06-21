@@ -14,13 +14,16 @@ cil_sums = $(tmp_cils:%=%.tosum)
 
 # phony targets
 
-all: commit $(pp_split_lines) dupes.txt status.txt
+all: commit $(pp_split_lines) tmp/_cache dupes.txt status.txt
 
 test: commit $(parsed_tests)
 
+tmp:
+	@mkdir -p tmp
+
+commit: | tmp
 commit:
 	git add -u && git commit -m hop || :
-	@mkdir -p tmp
 
 tox: commit
 	tox
@@ -39,6 +42,7 @@ myclean: clean
 
 # rules
 
+tmp/_cache: | tmp
 tmp/_cache: $(PROG) $(exports)
 	@$(PROG) $(exports)
 	@touch -- $@
@@ -52,6 +56,7 @@ tmp/%.cil: %.pp
 tmp/dupes.txt: tmp/sums.txt
 	awk '{print $$1}' tmp/sums.txt | sort | uniq -c | egrep -v ' 1 ' | awk '{print $$2}' > $@.tmp && mv -- $@.tmp $@
 
+tmp/sums.txt: | tmp
 tmp/sums.txt: $(cil_sums)
 ifeq ($(cil_sums),)
 	touch $@
