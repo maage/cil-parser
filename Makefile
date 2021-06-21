@@ -14,7 +14,7 @@ cil_sums = $(tmp_cils:%=%.tosum)
 
 # phony targets
 
-all: commit $(pp_split_lines) tmp/_cache dupes.txt status.txt
+all: commit $(pp_split_lines) dupes.txt status.txt
 
 test: commit $(parsed_tests)
 
