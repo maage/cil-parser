@@ -3,6 +3,17 @@
 set -epu -o pipefail
 
 D=sl
+declare -i OPT_kludge_dev=0
+
+while (( $# )); do
+    case "$1" in
+        --directory) (( $# > 1 )) || { echo "ERROR: $0 $*"; exit 2; }; D="$2"; shift 2 ;;
+        --directory=*) D="${1#--directory=}"; shift ;;
+        --kludge-dev) OPT_kludge_dev=1; shift ;;
+        --) shift; break ;;
+        *) echo "ERROR: $0 $*"; exit 2 ;;
+    esac
+done
 
 mkdir -p "$D" tmp
 
@@ -57,16 +68,18 @@ gen_require() {
                 "qmail_child_domain_template("*) line="$(sed -r 's/\(([^ ]*),/(\1_t,/' <<< "$line")" ;;
                 "ssh_server_template("*) line="${line%(*)}""()" ;;
             esac
-            # KLUDGE: some upstream interfaces miss types
-            # this should be fixed by upstream patches
-            case "$line" in
-                "dev_create_all_blk_files("*) echo 'device_t' | filter_require ;;
-                "dev_delete_all_blk_files("*) echo 'device_t' | filter_require ;;
-                "dev_create_all_chr_files("*) echo 'device_t' | filter_require ;;
-                "dev_delete_all_chr_files("*) echo 'device_t' | filter_require ;;
-                "dev_setattr_all_chr_files("*) echo 'device_t' | filter_require ;;
-                "dev_setattr_generic_usb_dev("*) echo 'device_t' | filter_require ;;
-            esac
+            if (( OPT_kludge_dev )); then
+                # KLUDGE: some upstream interfaces miss types
+                # this should be fixed by upstream patches
+                case "$line" in
+                    "dev_create_all_blk_files("*) echo 'device_t' | filter_require ;;
+                    "dev_delete_all_blk_files("*) echo 'device_t' | filter_require ;;
+                    "dev_create_all_chr_files("*) echo 'device_t' | filter_require ;;
+                    "dev_delete_all_chr_files("*) echo 'device_t' | filter_require ;;
+                    "dev_setattr_all_chr_files("*) echo 'device_t' | filter_require ;;
+                    "dev_setattr_generic_usb_dev("*) echo 'device_t' | filter_require ;;
+                esac
+            fi
             line="${line#*\(}"
             line="${line%)*}"
             sed -r "${rr_str}${rr2}" <<< "$line" | filter_require
