@@ -57,6 +57,14 @@ gen_require() {
                 "qmail_child_domain_template("*) line="$(sed -r 's/\(([^ ]*),/(\1_t,/' <<< "$line")" ;;
                 "ssh_server_template"*) line="${line%)}""_t)" ;;
             esac
+            # KLUDGE: some upstream interfaces miss types
+            # this should be fixed by upstream patches
+            case "$line" in
+                "dev_create_all_blk_files("*) echo 'device_t' | filter_require ;;
+                "dev_delete_all_blk_files("*) echo 'device_t' | filter_require ;;
+                "dev_create_all_chr_files("*) echo 'device_t' | filter_require ;;
+                "dev_delete_all_chr_files("*) echo 'device_t' | filter_require ;;
+            esac
             line="${line#*\(}"
             line="${line%)*}"
             sed -r "${rr_str}${rr2}" <<< "$line" | filter_require
