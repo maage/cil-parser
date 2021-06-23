@@ -121,11 +121,11 @@ gen_require() {
     '| sort -u
 }
 
-declare -A old_files=()
 outdel=()
 tmpdel=()
 
 for a in "$@"; do
+    declare -A old_files=()
     while IFS= read -d '' -r old && [ "$old" ]; do
         old_files["$old"]=1
     done < <(find "$D" -type f -name "$(basename -- "$a" .te)_*.te" -print0)
@@ -148,6 +148,9 @@ for a in "$@"; do
         unset old_files["$out"]
 
         if [ ! "$line" ]; then
+            if [ -f "$out" ]; then
+                changes=1
+            fi
             outdel+=("$out" "${out%.te}".fc "${out%.te}".if)
             continue
         fi
@@ -332,6 +335,9 @@ for a in "$@"; do
         fi
 
         if (( skip )); then
+            if [ -f "$out" ]; then
+                changes=1
+            fi
             outdel+=("$out")
             continue
         fi
@@ -357,10 +363,12 @@ for a in "$@"; do
         fi
     done < <(sed -r 's/^[[:space:]]*//;s/[[:space:]]*#.*//' "$a")
 
-    if (( changes )); then
+    if (( changes + ${#old_files[@]} )); then
         # If any of the files change, then we need to be sure there is no leftovers of old files
         find tmp -type f -name "$(basename "$a" .te)_*" -delete
     fi
+
+    outdel+=("${!old_files[@]}")
 done
 
 if (( ${#outdel[@]} + ${#old_files[@]} )); then
