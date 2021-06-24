@@ -2,6 +2,7 @@
 
 import argparse
 from collections import defaultdict
+import copy
 from dataclasses import (
     dataclass,
     field,
@@ -11,14 +12,14 @@ from enum import (
     auto,
 )
 
-# import json
+import json
 import os
 
 import random
 import sqlite3
 import string
 
-# import sys
+import sys
 
 from typing import (
     # cast,
@@ -49,7 +50,10 @@ from parsimonious.nodes import Node
 
 
 CilExpression = List[Union[str, List[Any]]]
-ParsedCil = List[CilExpression]
+TERulesSql = List[Dict[str, str]]
+TASetsSql = List[Dict[str, Union[str, bool]]]
+TypetransitionsSql = List[Dict[str, Optional[str]]]
+ParsedCil = Tuple[List["TERule"], List["TASet"], List["Typetransition"]]
 
 
 grammar = Grammar(
@@ -127,6 +131,27 @@ class Quad(Enum):
 QuadType = Union[Quad, bool]
 
 
+def bool_to_str10(lst: List[bool]) -> str:
+    return " ".join(str(a * 1) for a in lst)
+
+
+def str10_to_bool(s: str) -> List[bool]:
+    return [a == "1" for a in s.split(" ")]
+
+
+def expr_to_str(e: CilExpression, optional: List[str], booleanvalue: List[bool]) -> str:
+    rstring = []
+    bi = -1
+    for o in optional:
+        if o.startswith("["):
+            bi += 1
+            rstring.append(f"{o}=={booleanvalue[bi]}")
+        else:
+            rstring.append(o)
+    rstring.append(str(e))
+    return " ".join(rstring)
+
+
 # type enforcement rule
 @dataclass
 class TERule:
@@ -137,32 +162,54 @@ class TERule:
     target: str
     klass: str
     perms: List[str] = field(default_factory=list)
+    optional: List[str] = field(default_factory=list)
+    booleanvalue: List[bool] = field(default_factory=list)
 
     def sqldict(self) -> Dict[str, str]:
         return {
-            'file': self.file,
-            'string': self.string,
-            'type': self.type,
-            'source': self.source,
-            'target': self.target,
-            'class': self.klass,
-            'perms': ' '.join(self.perms),
+            "file": self.file,
+            "string": self.string,
+            "type": self.type,
+            "source": self.source,
+            "target": self.target,
+            "class": self.klass,
+            "perms": " ".join(self.perms),
+            "optional": " ".join(self.optional),
+            "booleanvalue": bool_to_str10(self.booleanvalue),
         }
 
     @classmethod
     def fromsqlrow(cls, res: sqlite3.Row) -> "TERule":
         return TERule(
-            res['file'],
-            res['string'],
-            res['type'],
-            res['source'],
-            res['target'],
-            res['class'],
-            res['perms'].split(' '),
+            res["file"],
+            res["string"],
+            res["type"],
+            res["source"],
+            res["target"],
+            res["class"],
+            res["perms"].split(" "),
+            res["optional"].split(" "),
+            str10_to_bool(res["booleanvalue"]),
         )
 
     @classmethod
-    def fromexpr(cls, e: CilExpression, file: str) -> "TERule":
+    def fromdict(cls, res: Dict[str, str]) -> "TERule":
+        return TERule(
+            res["file"],
+            res["string"],
+            res["type"],
+            res["source"],
+            res["target"],
+            res["class"],
+            res["perms"].split(" "),
+            res["optional"].split(" "),
+            str10_to_bool(res["booleanvalue"]),
+        )
+
+    @classmethod
+    def fromexpr(
+        cls, e: CilExpression, file: str, optional: List[str], booleanvalue: List[bool]
+    ) -> "TERule":
         # Do first full assert of the type and then create Rule
         assert isinstance(e, list)
         assert len(e) == 4
@@ -174,7 +221,10 @@ class TERule:
         assert isinstance(e[3][1], list)
         for _ in e[3][1]:
             assert isinstance(_, str)
-        return TERule(file, str(e), e[0], e[1], e[2], e[3][0], e[3][1])
+        rstring = expr_to_str(e, optional, booleanvalue)
+        return TERule(
+            file, rstring, e[0], e[1], e[2], e[3][0], e[3][1], optional, booleanvalue
+        )
 
 
 # type attribute set
@@ -185,38 +235,47 @@ class TASet:
     type: str
     attrs: set[str] = field(default_factory=set)
     is_logical: bool = False
+    optional: List[str] = field(default_factory=list)
+    booleanvalue: List[bool] = field(default_factory=list)
 
     def sqldict(self) -> Dict[str, Union[str, bool]]:
         return {
-            'file': self.file,
-            'string': self.string,
-            'type': self.type,
-            'attrs': ' '.join(self.attrs),
-            'is_logical': self.is_logical,
+            "file": self.file,
+            "string": self.string,
+            "type": self.type,
+            "attrs": " ".join(self.attrs),
+            "is_logical": self.is_logical,
+            "optional": " ".join(self.optional),
+            "booleanvalue": bool_to_str10(self.booleanvalue),
         }
 
     @classmethod
     def fromsqlrow(cls, res: sqlite3.Row) -> "TASet":
         return TASet(
-            res['file'],
-            res['string'],
-            res['type'],
-            res['attrs'].split(' '),
-            res['is_logical'],
+            res["file"],
+            res["string"],
+            res["type"],
+            res["attrs"].split(" "),
+            res["is_logical"],
+            res["optional"].split(" "),
+            str10_to_bool(res["booleanvalue"]),
         )
 
     @classmethod
-    def fromexpr(cls, e: CilExpression, file: str) -> "TASet":
+    def fromexpr(
+        cls, e: CilExpression, file: str, optional: List[str], booleanvalue: List[bool]
+    ) -> "TASet":
         assert isinstance(e, list)
         assert len(e) == 3
         assert isinstance(e[0], str)
         assert isinstance(e[1], str)
         assert isinstance(e[2], list)
-        if e[2][0] in ('and', 'not', 'or'):
-            return TASet(file, str(e), e[1], set(), True)
+        rstring = expr_to_str(e, optional, booleanvalue)
+        if e[2][0] in ("and", "not", "or"):
+            return TASet(file, rstring, e[1], set(), True, optional, booleanvalue)
         for _ in e[2]:
             assert isinstance(_, str)
-        return TASet(file, str(e), e[1], set(e[2]))
+        return TASet(file, rstring, e[1], set(e[2]), False, optional, booleanvalue)
 
 
 @dataclass
@@ -228,32 +287,40 @@ class Typetransition:
     klass: str
     target: str
     filename: Optional[str] = None
+    optional: List[str] = field(default_factory=list)
+    booleanvalue: List[bool] = field(default_factory=list)
 
     def sqldict(self) -> Dict[str, Optional[str]]:
         return {
-            'file': self.file,
-            'string': self.string,
-            'subject': self.subject,
-            'source': self.source,
-            'class': self.klass,
-            'target': self.target,
-            'filename': self.filename,
+            "file": self.file,
+            "string": self.string,
+            "subject": self.subject,
+            "source": self.source,
+            "class": self.klass,
+            "target": self.target,
+            "filename": self.filename,
+            "optional": " ".join(self.optional),
+            "booleanvalue": bool_to_str10(self.booleanvalue),
         }
 
     @classmethod
     def fromsqlrow(cls, res: sqlite3.Row) -> "Typetransition":
         return Typetransition(
-            res['file'],
-            res['string'],
-            res['subject'],
-            res['source'],
-            res['class'],
-            res['target'],
-            res['filename'],
+            res["file"],
+            res["string"],
+            res["subject"],
+            res["source"],
+            res["class"],
+            res["target"],
+            res["filename"],
+            res["optional"].split(" "),
+            str10_to_bool(res["booleanvalue"]),
         )
 
     @classmethod
-    def fromexpr(cls, e: CilExpression, file: str) -> "Typetransition":
+    def fromexpr(
+        cls, e: CilExpression, file: str, optional: List[str], booleanvalue: List[bool]
+    ) -> "Typetransition":
         assert isinstance(e, list)
         assert len(e) >= 5
         assert isinstance(e[0], str)
@@ -261,24 +328,29 @@ class Typetransition:
         assert isinstance(e[2], str)
         assert isinstance(e[3], str)
         assert isinstance(e[4], str)
+        rstring = expr_to_str(e, optional, booleanvalue)
         if len(e) == 6:
             assert isinstance(e[5], str)
-            return Typetransition(file, str(e), e[1], e[2], e[3], e[5], e[4])
-        return Typetransition(file, str(e), e[1], e[2], e[3], e[4])
+            return Typetransition(
+                file, rstring, e[1], e[2], e[3], e[5], e[4], optional, booleanvalue
+            )
+        return Typetransition(
+            file, rstring, e[1], e[2], e[3], e[4], None, optional, booleanvalue
+        )
 
 
 cilp = CilParser()
 
 
 type_enforcement_rule_types = [
-    'allow',
-    'auditallow',
-    'dontaudit',
-    'neverallow',
-    'allowxperm',
-    'auditallowxperm',
-    'dontauditxperm',
-    'neverallowxperm',
+    "allow",
+    "auditallow",
+    "dontaudit",
+    "neverallow",
+    "allowxperm",
+    "auditallowxperm",
+    "dontauditxperm",
+    "neverallowxperm",
 ]
 
 
@@ -297,7 +369,7 @@ class CilSearcher:
     def update_args(self) -> None:
         self.oargs = vars(self.args)
         self.vargs: DefaultDict[str, Set[str]] = defaultdict(set)
-        for key in ('perms',):
+        for key in ("perms",):
             if key not in self.oargs:
                 self.oargs[key] = None
                 continue
@@ -307,7 +379,7 @@ class CilSearcher:
                 self.vargs[key].add(self.oargs[key])
             else:
                 self.vargs[key].update(self.oargs[key])
-        for key in ('subject', 'source', 'target', 'not_source', 'not_target'):
+        for key in ("subject", "source", "target", "not_source", "not_target"):
             if key not in self.oargs:
                 self.oargs[key] = None
                 continue
@@ -324,22 +396,26 @@ class CilSearcher:
                     self.vargs[key].add(r.type)
 
     def setup_cache(self) -> None:
-        con = sqlite3.connect('export/cache.db', timeout=3600)
+        con = sqlite3.connect("export/cache.db", timeout=3600)
         # con.enable_callback_tracebacks(print)
         con.row_factory = sqlite3.Row
         cur = con.cursor()
-        cur.execute('PRAGMA foreign_keys')
+        cur.execute("PRAGMA foreign_keys")
 
-        cur.execute('BEGIN EXCLUSIVE TRANSACTION')
+        cur.execute("BEGIN EXCLUSIVE TRANSACTION")
 
         cur.execute(
-            '''CREATE TABLE IF NOT EXISTS files
+            """CREATE TABLE IF NOT EXISTS files
             ( file TEXT PRIMARY KEY
             , mtime_us INTEGER NOT NULL
-            )'''
+            )"""
         )
+
+        # perms: perms joined with " "
+        # optional: optional names joined with " "
+        # booleanvalue: true(1)/false(0) value of rules joined with " "
         cur.execute(
-            '''CREATE TABLE IF NOT EXISTS te_rules
+            """CREATE TABLE IF NOT EXISTS te_rules
             ( file TEXT NOT NULL
             , string TEXT NOT NULL
             , type TEXT NOT NULL
@@ -347,21 +423,25 @@ class CilSearcher:
             , target TEXT NOT NULL
             , class TEXT NOT NULL
             , perms TEXT NOT NULL
+            , optional TEXT NOT NULL
+            , booleanvalue TEXT NOT NULL
             , FOREIGN KEY(file) REFERENCES files(file)
-            )'''
+            )"""
         )
         cur.execute(
-            '''CREATE TABLE IF NOT EXISTS typeattributes
+            """CREATE TABLE IF NOT EXISTS typeattributes
             ( file TEXT NOT NULL
             , string TEXT NOT NULL
             , type TEXT NOT NULL
             , attrs TEXT NOT NULL
             , is_logical INTEGER DEFAULT (0)
+            , optional TEXT NOT NULL
+            , booleanvalue TEXT NOT NULL
             , FOREIGN KEY(file) REFERENCES files(file)
-            )'''
+            )"""
         )
         cur.execute(
-            '''CREATE TABLE IF NOT EXISTS typetransitions
+            """CREATE TABLE IF NOT EXISTS typetransitions
             ( file TEXT NOT NULL
             , string TEXT NOT NULL
             , subject TEXT NOT NULL
@@ -369,8 +449,10 @@ class CilSearcher:
             , class TEXT NOT NULL
             , target TEXT NOT NULL
             , filename TEXT
+            , optional TEXT NOT NULL
+            , booleanvalue TEXT NOT NULL
             , FOREIGN KEY(file) REFERENCES files(file)
-            )'''
+            )"""
         )
 
         con.commit()
@@ -382,7 +464,7 @@ class CilSearcher:
         assert self.cur is not None
 
         if self.args.from_all_known:
-            self.cur.execute('SELECT file FROM files')
+            self.cur.execute("SELECT file FROM files")
             for res in self.cur.fetchall():
                 file1 = res[0]
                 if os.path.exists(file1):
@@ -395,29 +477,29 @@ class CilSearcher:
                 self.files.append(file1)
                 mtime_us = int(os.path.getmtime(file1) * 1000000)
                 self.cur.execute(
-                    '''
+                    """
                     SELECT file FROM files
                     WHERE file=:file AND mtime_us == :mtime_us
-                    ''',
-                    {'file': file1, 'mtime_us': mtime_us},
+                    """,
+                    {"file": file1, "mtime_us": mtime_us},
                 )
                 for res in self.cur.fetchall():
                     files_no_need_to_update.add(res[0])
         files_to_update = set(self.files) - files_no_need_to_update
         # print(f'# files_to_update: {files_to_update}')
         for idx, file1 in enumerate(files_to_update):
-            self.cur.execute('BEGIN EXCLUSIVE TRANSACTION')
+            self.cur.execute("BEGIN EXCLUSIVE TRANSACTION")
 
             need_update = False
             if os.path.exists(file1):
                 need_update = True
                 mtime_us = int(os.path.getmtime(file1) * 1000000)
                 self.cur.execute(
-                    '''
+                    """
                     SELECT file FROM files
                     WHERE file=:file AND mtime_us == :mtime_us
-                    ''',
-                    {'file': file1, 'mtime_us': mtime_us},
+                    """,
+                    {"file": file1, "mtime_us": mtime_us},
                 )
                 for _ in self.cur.fetchall():
                     need_update = False
@@ -428,87 +510,86 @@ class CilSearcher:
                 self.con.commit()
                 continue
 
-            print(f'# {idx+1}/{len(files_to_update)} {file1}')
+            print(f"# {idx+1}/{len(files_to_update)} {file1}")
             self.refresh_cache_one_file(file1)
             self.con.commit()
 
     def refresh_cache_one_file(self, file1: str) -> None:
         assert self.cur is not None
-        with open(file1, 'r') as fd:
-            tree = grammar.parse(fd.read())
+        with open(file1, "r") as fd:
             mtime_us = int(os.path.getmtime(file1) * 1000000)
+
+            tree = grammar.parse(fd.read())
             queue = cilp.visit(tree)
-            rules = self.handle_file(queue)
+            res = self.handle_file(queue, file1, [], [])
+
+            te_rules: TERulesSql = []
+            typeattributes: TASetsSql = []
+            typetransitions: TypetransitionsSql = []
+
+            for te in res[0]:
+                te_rules.append(te.sqldict())
+            for ta in res[1]:
+                typeattributes.append(ta.sqldict())
+            for tt in res[2]:
+                typetransitions.append(tt.sqldict())
+
             self.cur.execute(
-                '''
+                """
                 DELETE FROM te_rules
                 WHERE file=:file
-                ''',
-                {'file': file1},
+                """,
+                {"file": file1},
             )
             self.cur.execute(
-                '''
+                """
                 DELETE FROM typeattributes
                 WHERE file=:file
-                ''',
-                {'file': file1},
+                """,
+                {"file": file1},
             )
             self.cur.execute(
-                '''
+                """
                 DELETE FROM typetransitions
                 WHERE file=:file
-                ''',
-                {'file': file1},
+                """,
+                {"file": file1},
             )
 
-            te_rules = []
-            typeattributes = []
-            typetransitions = []
-            for e in rules:
-                if e[0] in type_enforcement_rule_types:
-                    te = TERule.fromexpr(e, file1)
-                    te_rules.append(te.sqldict())
-                elif e[0] == 'typeattributeset':
-                    ta = TASet.fromexpr(e, file1)
-                    typeattributes.append(ta.sqldict())
-                elif e[0] == 'typetransition':
-                    tt = Typetransition.fromexpr(e, file1)
-                    typetransitions.append(tt.sqldict())
-
             self.cur.executemany(
-                '''
+                """
                 INSERT INTO te_rules
-                      ( file,  string,  type,  source,  target,  class,  perms)
-                VALUES(:file, :string, :type, :source, :target, :class, :perms)
-                ''',
+                      ( file,  string,  type,  source,  target,  class,  perms,  optional,  booleanvalue)
+                VALUES(:file, :string, :type, :source, :target, :class, :perms, :optional, :booleanvalue)
+                """,
                 te_rules,
             )
 
             self.cur.executemany(
-                '''
+                """
                 INSERT INTO typeattributes
-                      ( file,  string,  type,  attrs,  is_logical)
-                VALUES(:file, :string, :type, :attrs, :is_logical)
-                ''',
+                      ( file,  string,  type,  attrs,  is_logical,  optional,  booleanvalue)
+                VALUES(:file, :string, :type, :attrs, :is_logical, :optional, :booleanvalue)
+                """,
                 typeattributes,
             )
 
             self.cur.executemany(
-                '''
+                """
                 INSERT INTO typetransitions
-                      ( file,  string,  subject,  source,  class,  target,  filename)
-                VALUES(:file, :string, :subject, :source, :class, :target, :filename)
-                ''',
+                      ( file,  string,  subject,  source,  class,  target,  filename,  optional,  booleanvalue)
+                VALUES(:file, :string, :subject, :source, :class, :target, :filename, :optional, :booleanvalue)
+                """,
                 typetransitions,
             )
 
             self.cur.execute(
-                '''
+                """
                 REPLACE INTO files
                        ( file,  mtime_us)
                 VALUES (:file, :mtime_us)
-                ''',
-                {'file': file1, 'mtime_us': mtime_us},
+                """,
+                {"file": file1, "mtime_us": mtime_us},
             )
 
     def load(self) -> None:
@@ -517,32 +598,49 @@ class CilSearcher:
         self.handle_from_arg()
 
     def handle_from_arg(self) -> None:
-        from_file = self.oargs['from']
+        from_file = self.oargs["from"]
         if from_file is not None:
-            print(f'# {1}/{1} {from_file.name}')
+            print(f"# {1}/{1} {from_file.name}")
             tree = grammar.parse(from_file.read())
             cil_from = cilp.visit(tree)
-            self.cil_from = self.handle_file(cil_from)
+            self.cil_from = self.handle_file(cil_from, "cil_from", [], [])
 
-    @staticmethod
-    def handle_file(queue: List[Any]) -> ParsedCil:
+    def handle_file(
+        self, queue: List[Any], file1: str, op: List[Any], bv: List[bool]
+    ) -> ParsedCil:
         seen: set[str] = set()
-        result: ParsedCil = []
 
-        # First recurse and filter unique only
-        # Also collect attrs data
+        te_rules: List["TERule"] = []
+        typeattributes: List["TASet"] = []
+        typetransitions: List["Typetransition"] = []
+
+        # First recurse and filter unique only per rule. Drop all
+        # cil_gen_requires as there is no info there for us.
         while queue:
             e = queue.pop(0)
-            if e[0] == 'optional':
-                queue.extend(e[2:])
+            if e[0] == "optional":
+                op2 = copy.copy(op)
+                op2.append(e[1])
+                bv2 = copy.copy(bv)
+                res = self.handle_file(e[2:], file1, op2, bv2)
+                te_rules.extend(res[0])
+                typeattributes.extend(res[1])
+                typetransitions.extend(res[2])
                 continue
-            if e[0] == 'booleanif':
+            if e[0] == "booleanif":
                 for b in e[2:]:
-                    queue.extend(b[1:])
+                    op2 = copy.copy(op)
+                    op2.append(json.dumps(e[1]))
+                    bv2 = copy.copy(bv)
+                    bv2.append(b[0] == "true")
+                    res = self.handle_file(b[1:], file1, op2, bv2)
+                    te_rules.extend(res[0])
+                    typeattributes.extend(res[1])
+                    typetransitions.extend(res[2])
                 continue
-            if e[0] == 'typeattributeset' and e[1] == 'cil_gen_require':
+            if e[0] == "typeattributeset" and e[1] == "cil_gen_require":
                 continue
-            if e[0] == 'roleattributeset' and e[1] == 'cil_gen_require':
+            if e[0] == "roleattributeset" and e[1] == "cil_gen_require":
                 continue
 
             # only show each entity once
@@ -551,12 +649,71 @@ class CilSearcher:
                 continue
             seen.add(e_str)
 
-            result.append(e)
-        return result
+            if e[0] in type_enforcement_rule_types:
+                te = TERule.fromexpr(e, file1, op, bv)
+                te_rules.append(te)
+            elif e[0] == "typeattributeset":
+                ta = TASet.fromexpr(e, file1, op, bv)
+                typeattributes.append(ta)
+            elif e[0] == "typetransition":
+                tt = Typetransition.fromexpr(e, file1, op, bv)
+                typetransitions.append(tt)
+            elif e[0] in [
+                "category",
+                "categoryorder",
+                "class",
+                "classcommon",
+                "classorder",
+                "common",
+                "defaultrange",
+                "filecon",
+                "fsuse",
+                "genfscon",
+                "handleunknown",
+                "mls",
+                "mlsconstrain",
+                "policycap",
+                "portcon",
+                "rangetransition",
+                "role",
+                "roleallow",
+                "roleattribute",
+                "roleattributeset",
+                "roletransition",
+                "roletype",
+                "selinuxuser",
+                "selinuxuserdefault",
+                "sensitivity",
+                "sensitivitycategory",
+                "sensitivityorder",
+                "sid",
+                "sidcontext",
+                "sidorder",
+                "type",
+                "typealias",
+                "typealiasactual",
+                "typeattribute",
+                "typechange",
+                "typemember",
+                "user",
+                "userlevel",
+                "userprefix",
+                "userrange",
+                "userrole",
+            ]:
+                None
+            elif e[0] == "boolean":
+                # ['boolean', 'name', 'false']
+                None
+            else:
+                print(e)
+                sys.exit(1)
+
+        return (te_rules, typeattributes, typetransitions)
 
     @staticmethod
     def rand_str(size: int) -> str:
-        return ''.join(
+        return "".join(
             random.choice(string.ascii_letters + string.digits) for _ in range(size)
         )
 
@@ -573,31 +730,31 @@ class CilSearcher:
         args: List[str] = []
         query: List[str] = []
 
-        table = 'temp_files_' + rnd
-        self.cur.execute(f'CREATE TEMPORARY TABLE {table}(x)')
+        table = "temp_files_" + rnd
+        self.cur.execute(f"CREATE TEMPORARY TABLE {table}(x)")
         tables.append(table)
         self.cur.executemany(
-            f'INSERT INTO {table} VALUES (?)', [(a,) for a in self.files]
+            f"INSERT INTO {table} VALUES (?)", [(a,) for a in self.files]
         )
-        query.append(f'file IN {table}')
+        query.append(f"file IN {table}")
 
         for var, name in multivars:
             if var is not None:
-                table = f'temp_{name}s_' + rnd
-                self.cur.execute(f'CREATE TEMPORARY TABLE {table}(x)')
+                table = f"temp_{name}s_" + rnd
+                self.cur.execute(f"CREATE TEMPORARY TABLE {table}(x)")
                 tables.append(table)
                 self.cur.executemany(
-                    f'INSERT INTO {table} VALUES (?)',
+                    f"INSERT INTO {table} VALUES (?)",
                     [(a,) for a in self.vargs[name]],
                 )
-                query.append(f'{name} IN {table}')
+                query.append(f"{name} IN {table}")
 
         for k in simplevars:
-            query.append(f'{k}=?')
+            query.append(f"{k}=?")
             args.append(self.oargs[k])
 
         if query:
-            full_query = full_query + ' WHERE ' + ' AND '.join(query)
+            full_query = full_query + " WHERE " + " AND ".join(query)
 
         return (full_query, args)
 
@@ -609,7 +766,7 @@ class CilSearcher:
         tables: List[str] = []
         try:
             full_query, args = self.sql_temp_table_query(
-                tables, [], [], 'SELECT * FROM typeattributes'
+                tables, [], [], "SELECT * FROM typeattributes"
             )
             self.cur.execute(full_query, args)
             for res in self.cur.fetchall():
@@ -619,7 +776,7 @@ class CilSearcher:
                     self.reverse_tasets[attr].append(r)
         finally:
             for t in tables:
-                self.cur.execute(f'DROP TABLE {t}')
+                self.cur.execute(f"DROP TABLE {t}")
 
     def search(self) -> None:
         if self.cil_from is not None:
@@ -634,65 +791,55 @@ class CilSearcher:
     def search_from(self) -> None:
         # pylint: disable=too-many-branches, too-many-statements
         assert self.cil_from is not None
-        for e in self.cil_from:
-            seen: set[str] = set()
-            assert isinstance(e[0], str)
-            if e[0] in type_enforcement_rule_types:
-                r: TERule = TERule.fromexpr(e, 'cil_from')
-                self.oargs['type'] = r.type
-                self.oargs['source'] = r.source
-                self.oargs['target'] = r.target
-                self.oargs['class'] = r.klass
-                self.oargs['perms'] = r.perms
-                self.update_args()
+        seen: set[str] = set()
+        te_rules, typeattributes, typetransitions = self.cil_from
+        for r in te_rules:
+            self.oargs["type"] = r.type
+            self.oargs["source"] = r.source
+            self.oargs["target"] = r.target
+            self.oargs["class"] = r.klass
+            self.oargs["perms"] = r.perms
+            self.update_args()
 
-                got_all, got_any, missing_perms = self.search_terule(seen)
-                if got_all:
-                    perms = " ".join(r.perms)
-                    status = 'found'
-                elif got_any:
-                    mp = []
-                    # pylint: disable=not-an-iterable
-                    for pp in r.perms:
-                        if pp in missing_perms:
-                            mp.append(f'-{pp}')
-                        else:
-                            mp.append(pp)
-                    perms = " ".join(mp)
-                    status = 'some'
-                else:
-                    perms = " ".join(r.perms)
-                    status = 'no'
-                print(
-                    f'# {status}: ({r.type} {r.source} {r.target} ({r.klass} ({perms})))'
-                )
-            elif e[0] in ('boolean', 'filecon'):
-                # Assume error during module load
-                continue
-            elif e[0] == 'typetransition':
-                t: Typetransition = Typetransition.fromexpr(e, 'cil_from')
-                self.oargs['subject'] = t.subject
-                self.oargs['source'] = t.source
-                self.oargs['class'] = t.klass
-                self.oargs['filename'] = t.filename
-                self.oargs['target'] = t.target
-                self.update_args()
-                q = self.search_typetransition(seen)
-                if q == Quad.TRUE:
-                    status = 'found'
-                elif q == Quad.PARTIAL:
-                    status = 'partial'
-                elif q == Quad.MORE:
-                    status = 'more'
-                else:
-                    status = 'no'
-                rpre = " ".join([e[0], t.subject, t.source, t.klass])
-                if t.filename is None:
-                    print(f'# {status}: ({rpre} {t.target})')
-                else:
-                    print(f'# {status}: ({rpre} {t.filename} {t.target})')
+            got_all, got_any, missing_perms = self.search_terule(seen)
+            if got_all:
+                perms = " ".join(r.perms)
+                status = "found"
+            elif got_any:
+                mp = []
+                # pylint: disable=not-an-iterable
+                for pp in r.perms:
+                    if pp in missing_perms:
+                        mp.append(f"-{pp}")
+                    else:
+                        mp.append(pp)
+                perms = " ".join(mp)
+                status = "some"
             else:
-                print(f'# skip: {e}')
+                perms = " ".join(r.perms)
+                status = "no"
+            print(f"# {status}: ({r.type} {r.source} {r.target} ({r.klass} ({perms})))")
+        for t in typetransitions:
+            self.oargs["subject"] = t.subject
+            self.oargs["source"] = t.source
+            self.oargs["class"] = t.klass
+            self.oargs["filename"] = t.filename
+            self.oargs["target"] = t.target
+            self.update_args()
+            q = self.search_typetransition(seen)
+            if q == Quad.TRUE:
+                status = "found"
+            elif q == Quad.PARTIAL:
+                status = "partial"
+            elif q == Quad.MORE:
+                status = "more"
+            else:
+                status = "no"
+            rpre = " ".join(["typetransitions", t.subject, t.source, t.klass])
+            if t.filename is None:
+                print(f"# {status}: ({rpre} {t.target})")
+            else:
+                print(f"# {status}: ({rpre} {t.filename} {t.target})")
 
     @staticmethod
     def handle_seen(
@@ -700,7 +847,7 @@ class CilSearcher:
     ) -> bool:
         if seen is None:
             return True
-        seen_key = ' '.join((r.file, r.string))
+        seen_key = " ".join((r.file, r.string))
         # only show each entity once
         if seen_key in seen:
             return False
@@ -714,35 +861,35 @@ class CilSearcher:
         got_all = True
         got_any = False
         missing_perms: Set[str] = set()
-        if self.oargs['perms'] is not None:
+        if self.oargs["perms"] is not None:
             got_all = False
-            missing_perms.update(self.vargs['perms'])
-            wanted_perms = self.vargs['perms']
+            missing_perms.update(self.vargs["perms"])
+            wanted_perms = self.vargs["perms"]
 
         tables: List[str] = []
         multivars = [
-            (self.args.source, 'source'),
-            (self.args.target, 'target'),
-            (self.args.not_source, 'not_source'),
-            (self.args.not_target, 'not_target'),
+            (self.args.source, "source"),
+            (self.args.target, "target"),
+            (self.args.not_source, "not_source"),
+            (self.args.not_target, "not_target"),
         ]
-        simplevars = ['class', 'type']
+        simplevars = ["class", "type"]
         try:
             full_query, args = self.sql_temp_table_query(
-                tables, multivars, simplevars, 'SELECT * FROM te_rules'
+                tables, multivars, simplevars, "SELECT * FROM te_rules"
             )
             self.cur.execute(full_query, args)
             for res in self.cur.fetchall():
                 r = TERule.fromsqlrow(res)
-                if self.oargs['from'] is not None and (
-                    self.oargs['from'].name == r.file
-                    or os.path.basename(self.oargs['from'].name)
+                if self.oargs["from"] is not None and (
+                    self.oargs["from"].name == r.file
+                    or os.path.basename(self.oargs["from"].name)
                     == os.path.basename(r.file)
                 ):
                     continue
                 if not self.handle_seen(seen, r):
                     continue
-                if self.oargs['perms'] is not None:
+                if self.oargs["perms"] is not None:
                     got_perms = set(r.perms)
                     if wanted_perms.isdisjoint(got_perms):
                         continue
@@ -752,33 +899,33 @@ class CilSearcher:
                         got_all = True
                 else:
                     got_any = True
-                print(f'{r.file}:{r.string}')
+                print(f"{r.file}:{r.string}")
             return got_all, got_any, missing_perms
         finally:
             for t in tables:
-                self.cur.execute(f'DROP TABLE {t}')
+                self.cur.execute(f"DROP TABLE {t}")
 
     def search_typetransition(self, seen: Optional[set[str]] = None) -> Quad:
         assert self.cur is not None
         found = Quad.FALSE
         tables: List[str] = []
         multivars = [
-            (self.args.source, 'source'),
-            (self.args.target, 'target'),
-            (self.args.not_source, 'not_source'),
-            (self.args.not_target, 'not_target'),
+            (self.args.source, "source"),
+            (self.args.target, "target"),
+            (self.args.not_source, "not_source"),
+            (self.args.not_target, "not_target"),
         ]
-        simplevars = ['class', 'subject']
+        simplevars = ["class", "subject"]
         try:
             full_query, args = self.sql_temp_table_query(
-                tables, multivars, simplevars, 'SELECT * FROM typetransitions'
+                tables, multivars, simplevars, "SELECT * FROM typetransitions"
             )
             self.cur.execute(full_query, args)
             for res in self.cur.fetchall():
                 r = Typetransition.fromsqlrow(res)
-                if self.oargs['from'] is not None and (
-                    self.oargs['from'].name == r.file
-                    or os.path.basename(self.oargs['from'].name)
+                if self.oargs["from"] is not None and (
+                    self.oargs["from"].name == r.file
+                    or os.path.basename(self.oargs["from"].name)
                     == os.path.basename(r.file)
                 ):
                     continue
@@ -787,24 +934,24 @@ class CilSearcher:
                     continue
                 if not self.handle_seen(seen, r):
                     continue
-                print(f'{r.file}:{r.string}')
+                print(f"{r.file}:{r.string}")
                 found = q
             return found
         finally:
             for t in tables:
-                self.cur.execute(f'DROP TABLE {t}')
+                self.cur.execute(f"DROP TABLE {t}")
 
     def search_taset(self, seen: Optional[set[str]] = None) -> bool:
         found = False
         result: set[TASet] = set()
-        if 'source' in self.vargs and self.vargs['source'] is not None:
-            for s in self.vargs['source']:
+        if "source" in self.vargs and self.vargs["source"] is not None:
+            for s in self.vargs["source"]:
                 if s in self.reverse_tasets:
                     tas = self.reverse_tasets[self.args.source]
                     if tas is not None:
                         result.update(tas)
-        if 'target' in self.vargs and self.vargs['target'] is not None:
-            for s in self.vargs['target']:
+        if "target" in self.vargs and self.vargs["target"] is not None:
+            for s in self.vargs["target"]:
                 if s in self.tasets:
                     tas = self.tasets[s]
                     if tas is not None:
@@ -815,24 +962,24 @@ class CilSearcher:
             found = True
             if not self.handle_seen(seen, r):
                 continue
-            print(f'{r.file}:{r.string}')
+            print(f"{r.file}:{r.string}")
         return found
 
     def search_resolveattr(self) -> None:
         result: set[str] = set()
-        if 'source' in self.vargs and self.vargs['source'] is not None:
-            for s in self.vargs['source']:
+        if "source" in self.vargs and self.vargs["source"] is not None:
+            for s in self.vargs["source"]:
                 if s in self.reverse_tasets:
                     result.add(s)
                     for r in self.reverse_tasets[s]:
                         result.update(r.attrs)
-        if 'target' in self.vargs and self.vargs['target'] is not None:
-            for t in self.vargs['target']:
+        if "target" in self.vargs and self.vargs["target"] is not None:
+            for t in self.vargs["target"]:
                 if t in self.tasets:
                     result.add(t)
                     result.update([r.type for r in self.tasets[t]])
         for attr in sorted(result):
-            print(f'{attr}')
+            print(f"{attr}")
 
     def match_typeattributeset(self, taset: TASet) -> bool:
         if self.args.source is not None and self.args.source != taset.type:
@@ -843,43 +990,43 @@ class CilSearcher:
 
     def match_typetransition(self, r: Typetransition) -> Quad:
         # pylint: disable=too-many-return-statements
-        if r.subject != self.oargs['subject']:
+        if r.subject != self.oargs["subject"]:
             return Quad.FALSE
-        if r.source not in self.vargs['source']:
+        if r.source not in self.vargs["source"]:
             return Quad.FALSE
-        if r.target not in self.vargs['target']:
+        if r.target not in self.vargs["target"]:
             return Quad.FALSE
-        if r.klass != self.oargs['class']:
+        if r.klass != self.oargs["class"]:
             return Quad.FALSE
-        if self.oargs['filename'] is None:
+        if self.oargs["filename"] is None:
             if r.filename is not None:
                 return Quad.PARTIAL
         else:
             if r.filename is None:
                 return Quad.MORE
-            if self.oargs['filename'] != r.filename:
+            if self.oargs["filename"] != r.filename:
                 return Quad.FALSE
         return Quad.TRUE
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Parse and search cil files')
+    parser = argparse.ArgumentParser(description="Parse and search cil files")
     files_group = parser.add_mutually_exclusive_group(required=True)
-    files_group.add_argument('files', metavar='FILES', type=str, nargs='*', default=[])
-    files_group.add_argument('--from-all-known', action='store_true')
+    files_group.add_argument("files", metavar="FILES", type=str, nargs="*", default=[])
+    files_group.add_argument("--from-all-known", action="store_true")
     type_group = parser.add_mutually_exclusive_group()
-    type_group.add_argument('--type', choices=type_enforcement_rule_types)
-    type_group.add_argument('--attr', action='store_true')
-    type_group.add_argument('--resolveattr', action='store_true')
-    parser.add_argument('--source', type=str)
-    parser.add_argument('--not-source', type=str)
-    parser.add_argument('--target', type=str)
-    parser.add_argument('--not-target', type=str)
-    parser.add_argument('--class', type=str)
-    parser.add_argument('--perms', type=str)
-    parser.add_argument('--reverse-source', action='store_true')
-    parser.add_argument('--reverse-target', action='store_true')
-    parser.add_argument('--from', type=argparse.FileType('r'))
+    type_group.add_argument("--type", choices=type_enforcement_rule_types)
+    type_group.add_argument("--attr", action="store_true")
+    type_group.add_argument("--resolveattr", action="store_true")
+    parser.add_argument("--source", type=str)
+    parser.add_argument("--not-source", type=str)
+    parser.add_argument("--target", type=str)
+    parser.add_argument("--not-target", type=str)
+    parser.add_argument("--class", type=str)
+    parser.add_argument("--perms", type=str)
+    parser.add_argument("--reverse-source", action="store_true")
+    parser.add_argument("--reverse-target", action="store_true")
+    parser.add_argument("--from", type=argparse.FileType("r"))
 
     args = parser.parse_args()
     # print(args)
@@ -891,5 +1038,5 @@ def main() -> None:
     cs.search()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
