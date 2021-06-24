@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Directory can be made running somehing like this:
-# export DIR="$(pwd)/tmp/install
-# printf "DIR=%q\n" "$DIR"
+# export DIR="$(pwd)"/tmp/install
+# printf "export DIR=%q\n" "$DIR"
 # mkdir -p "$DIR"/var/lib/selinux/targeted
 # make -j$(nproc) DISTRO=redhat UBAC=n DIRECT_INITRC=n MONOLITHIC=n MLS_CATS=1024 MCS_CATS=1024 UNK_PERMS=allow NAME=targeted TYPE=mcs DESTDIR=tmp/install 'SEMODULE=/usr/sbin/semodule -v -p '"$DIR"' -X 100 ' load
 
