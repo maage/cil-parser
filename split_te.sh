@@ -64,6 +64,8 @@ gen_require() {
                 "dev_delete_all_blk_files("*) echo 'device_t' | filter_require ;;
                 "dev_create_all_chr_files("*) echo 'device_t' | filter_require ;;
                 "dev_delete_all_chr_files("*) echo 'device_t' | filter_require ;;
+                "dev_setattr_all_chr_files("*) echo 'device_t' | filter_require ;;
+                "dev_setattr_generic_usb_dev("*) echo 'device_t' | filter_require ;;
             esac
             line="${line#*\(}"
             line="${line%)*}"
