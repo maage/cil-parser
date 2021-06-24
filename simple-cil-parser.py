@@ -193,20 +193,6 @@ class TERule:
         )
 
     @classmethod
-    def fromdict(cls, res: Dict[str, str]) -> "TERule":
-        return TERule(
-            res["file"],
-            res["string"],
-            res["type"],
-            res["source"],
-            res["target"],
-            res["class"],
-            res["perms"].split(" "),
-            res["optional"].split(" "),
-            str10_to_bool(res["booleanvalue"]),
-        )
-
-    @classmethod
     def fromexpr(
         cls, e: CilExpression, file: str, optional: List[str], booleanvalue: List[bool]
     ) -> "TERule":
@@ -619,9 +605,8 @@ class CilSearcher:
         while queue:
             e = queue.pop(0)
             if e[0] == "optional":
-                op2 = copy.copy(op)
+                op2, bv2 = copy.copy(op), copy.copy(bv)
                 op2.append(e[1])
-                bv2 = copy.copy(bv)
                 res = self.handle_file(e[2:], file1, op2, bv2)
                 te_rules.extend(res[0])
                 typeattributes.extend(res[1])
@@ -629,9 +614,8 @@ class CilSearcher:
                 continue
             if e[0] == "booleanif":
                 for b in e[2:]:
-                    op2 = copy.copy(op)
+                    op2, bv2 = copy.copy(op), copy.copy(bv)
                     op2.append(json.dumps(e[1]))
-                    bv2 = copy.copy(bv)
                     bv2.append(b[0] == "true")
                     res = self.handle_file(b[1:], file1, op2, bv2)
                     te_rules.extend(res[0])
