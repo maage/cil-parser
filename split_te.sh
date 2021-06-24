@@ -4,7 +4,7 @@ set -epu -o pipefail
 
 D=split_lines
 
-mkdir -p "$D"
+mkdir -p "$D" tmp
 
 # input: tokens of unknown type, or some bogus tokens
 # output: type/role/attribute/etc clauses for each valid token
@@ -130,7 +130,6 @@ gen_require() {
 }
 
 outdel=()
-tmpdel=()
 
 for a in "$@"; do
     declare -A old_files=()
