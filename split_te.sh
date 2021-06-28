@@ -55,7 +55,7 @@ gen_require() {
                 "piranha_domain_template("*) line="$(sed -r 's/\((.*)\)/(piranha_\1_t)/' <<< "$line")" ;;
                 "postfix_server_domain_template("*) line="${line%(*)}""(foo_t)" ;;
                 "qmail_child_domain_template("*) line="$(sed -r 's/\(([^ ]*),/(\1_t,/' <<< "$line")" ;;
-                "ssh_server_template"*) line="${line%)}""_t)" ;;
+                "ssh_server_template("*) line="${line%(*)}""()" ;;
             esac
             # KLUDGE: some upstream interfaces miss types
             # this should be fixed by upstream patches
