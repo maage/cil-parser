@@ -11,7 +11,10 @@ set -epux -o pipefail
 (( $# ))
 D="$1"
 
+mkdir -p "$D"/tmp/install
 export DESTDIR="$(readlink -f -- "$D"/tmp/install)"
+[ "$DESTDIR" ]
+[ -d "$DESTDIR" ]
 mkdir -p "$DESTDIR"/var/lib/selinux/targeted
 
 make_refpolicy() {
@@ -26,7 +29,11 @@ if [ ! -f "$DESTDIR"/usr/share/selinux/devel/Makefile ]; then
     cp /usr/share/selinux/devel/Makefile "$DESTDIR"/usr/share/selinux/devel/Makefile
     sed -ri 's,(SHAREDIR :=).*,\1 '"$DESTDIR"/usr/share/selinux',' "$DESTDIR"/usr/share/selinux/devel/Makefile
     popd
+    ./export.sh "$DESTDIR"
 fi
+
+rm -rf split_lines
+make DESTDIR="$DESTDIR" -j"$(nproc)" -k || make DESTDIR="$DESTDIR" -j"$(nproc)"
 
 f=()
 while IFS='' read -d '' -r a && [ "$a" ]; do
