@@ -1,5 +1,7 @@
 PROG := ./simple-cil-parser.py
 
+DESTDIR ?=
+
 exports = $(wildcard export/*.cil)
 tests = $(wildcard test/*.cil)
 split_lines = $(wildcard split_lines/*.te)
@@ -77,6 +79,6 @@ status.txt: $(split_lines_log)
 
 QUIET := n
 
-include /usr/share/selinux/devel/Makefile
+include $(DESTDIR)/usr/share/selinux/devel/Makefile
 
 SEMODULE := $(SBINDIR)/semodule -v
