@@ -15,7 +15,7 @@ export DESTDIR="$(readlink -f -- "$D"/tmp/install)"
 mkdir -p "$DESTDIR"/var/lib/selinux/targeted
 
 make_refpolicy() {
-    make DISTRO=redhat UBAC=n DIRECT_INITRC=n MONOLITHIC=n MLS_CATS=1024 MCS_CATS=1024 UNK_PERMS=allow NAME=targeted TYPE=mcs DESTDIR="$DESTDIR" 'SEMODULE=/usr/sbin/semodule -v -p '"$DESTDIR"' -X 100 ' "$@"
+    make DISTRO=redhat SYSTEMD=y WERROR=y UBAC=n DIRECT_INITRC=n MONOLITHIC=n MLS_CATS=1024 MCS_CATS=1024 UNK_PERMS=allow NAME=targeted TYPE=mcs DESTDIR="$DESTDIR" 'SEMODULE=/usr/sbin/semodule -v -p '"$DESTDIR"' -X 100 ' "$@"
 }
 
 if [ ! -f "$DESTDIR"/usr/share/selinux/devel/Makefile ]; then
