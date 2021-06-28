@@ -363,7 +363,7 @@ for a in "$@"; do
             pre="$(printf "%s\nx" "$pre")"
             pre="${pre%x}"
         fi
-        printf "policy_module(%s_%d, 1.0.0)\n%s\n%s%s\n" "$(basename -- "$a" .te)" "$lineno" "$requires" "$pre" "$line" > "$out".tmp
+        printf "# source: %s\npolicy_module(%s_%d, 1.0.0)\n%s\n%s%s\n" "$a" "$(basename -- "$a" .te)" "$lineno" "$requires" "$pre" "$line" > "$out".tmp
         if [ ! -f "$out" ] || ! cmp -s "$out".tmp "$out"; then
             mv -- "$out".tmp "$out"
             changes=1
