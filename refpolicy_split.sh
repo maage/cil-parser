@@ -11,6 +11,8 @@ set -epux -o pipefail
 (( $# ))
 D="$1"
 
+[ "$D" ]
+[ -d "$D" ]
 mkdir -p "$D"/tmp/install
 export DESTDIR="$(readlink -f -- "$D"/tmp/install)"
 [ "$DESTDIR" ]
@@ -48,6 +50,6 @@ while IFS='' read -d '' -r a && [ "$a" ]; do
         cp "$D"/tmp/all_interfaces.conf tmp/all_interfaces.conf
         touch tmp/all_interfaces.conf
     fi
-    make DESTDIR="$DESTDIR" -j"$(nproc)" -k || make DESTDIR="$DESTDIR" -j"$(nproc)"  # || { touch "$err"; continue; }
+    make DESTDIR="$DESTDIR" -j"$(nproc)" -k || make DESTDIR="$DESTDIR" -j"$(nproc)" || { touch "$err"; continue; }
     touch "$ok"
 done < <(find "$D" -name '*.te' -type f -print0 | shuf -z)
