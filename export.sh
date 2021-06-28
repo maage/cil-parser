@@ -1,17 +1,18 @@
 #!/bin/bash
 
 # Directory can be made running somehing like this:
-# export DIR="$(pwd)"/tmp/install
-# printf "export DIR=%q\n" "$DIR"
-# mkdir -p "$DIR"/var/lib/selinux/targeted
-# make -j$(nproc) DISTRO=redhat UBAC=n DIRECT_INITRC=n MONOLITHIC=n MLS_CATS=1024 MCS_CATS=1024 UNK_PERMS=allow NAME=targeted TYPE=mcs DESTDIR=tmp/install 'SEMODULE=/usr/sbin/semodule -v -p '"$DIR"' -X 100 ' load
+# export DESTDIR="$(pwd)"/tmp/install
+# printf "export DESTDIR=%q\n" "$DESTDIR"
+# mkdir -p "$DESTDIR"/var/lib/selinux/targeted
+# make DISTRO=redhat UBAC=n DIRECT_INITRC=n MONOLITHIC=n MLS_CATS=1024 MCS_CATS=1024 UNK_PERMS=allow NAME=targeted TYPE=mcs DESTDIR="$DESTDIR" 'SEMODULE=/usr/sbin/semodule -v -p '"$DESTDIR"' -X 100 ' conf
+# make -j$(nproc) DISTRO=redhat UBAC=n DIRECT_INITRC=n MONOLITHIC=n MLS_CATS=1024 MCS_CATS=1024 UNK_PERMS=allow NAME=targeted TYPE=mcs DESTDIR="$DESTDIR" 'SEMODULE=/usr/sbin/semodule -v -p '"$DESTDIR"' -X 100 ' load
 
 set -epu -o pipefail
 
 (( $# ))
 
-DIR="$(readlink -f -- "$1")"
-SEMODULE=(semodule -p "$DIR")
+DESTDIR="$(readlink -f -- "$1")"
+SEMODULE=(semodule -p "$DESTDIR")
 
 mkdir -p export/tmp
 pushd export/tmp
