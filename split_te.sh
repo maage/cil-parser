@@ -190,19 +190,19 @@ for a in "$@"; do
         elif [[ "$line" =~ ^(ifdef|ifndef)\( ]]; then
             (( depth++ )) || :
             struct["$depth"]="()"
-            if [[ "$line" =~ ^ifdef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|enable_ubac|ipa_helper_noatsecure|targeted_policy)\',\ *\`$ ]]; then
+            if [[ "$line" =~ ^ifdef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|init_systemd|ipa_helper_noatsecure|targeted_policy)\',\ *\`$ ]]; then
                 # define true, value true
                 state["$depth"]="${state[$(((depth-1)))]}"
                 branch["$depth"]=false
-            elif [[ "$line" =~ ^ifdef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|sulogin_no_pam|TODO)\',\ *\`$ ]]; then
+            elif [[ "$line" =~ ^ifdef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|enable_ubac|sulogin_no_pam|TODO)\',\ *\`$ ]]; then
                 # define false, value false
                 state["$depth"]=false
                 branch["$depth"]="${state[$(((depth-1)))]}"
-            elif [[ "$line" =~ ^ifndef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|sulogin_no_pam|TODO)\',\ *\`$ ]]; then
+            elif [[ "$line" =~ ^ifndef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|enable_ubac|sulogin_no_pam|TODO)\',\ *\`$ ]]; then
                 # define false, value true
                 state["$depth"]="${state[$(((depth-1)))]}"
                 branch["$depth"]=false
-            elif [[ "$line" =~ ^ifndef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|enable_ubac|ipa_helper_noatsecure|targeted_policy)\',\ *\`$ ]]; then
+            elif [[ "$line" =~ ^ifndef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|init_systemd|ipa_helper_noatsecure|targeted_policy)\',\ *\`$ ]]; then
                 # define true, value false
                 state["$depth"]=false
                 branch["$depth"]="${state[$(((depth-1)))]}"
