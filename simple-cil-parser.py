@@ -56,6 +56,9 @@ TypetransitionsSql = List[Dict[str, Optional[str]]]
 ParsedCil = Tuple[List["TERule"], List["TASet"], List["Typetransition"]]
 
 
+sys.setrecursionlimit(10**4)
+
+
 grammar = Grammar(
     r"""
     exprs = s_expr+
