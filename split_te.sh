@@ -131,24 +131,30 @@ gen_require() {
     '| sort -u
 }
 
-outdel=()
 
-for a in "$@"; do
+handle_te() {
+    local a="$1"; shift
+
+    local outbase="${a##*/}"
+    outbase="${outbase%.te}"
+
     declare -A old_files=()
-    while IFS= read -d '' -r old && [ "$old" ]; do
+    for old in "$D"/"$outbase"_*.te; do
+        [ -f "$old" ] || continue
         old_files["$old"]=1
-    done < <(find "$D" -type f -name "$(basename -- "$a" .te)_*.te" -print0)
+    done
 
-    changes=0
-    lineno=0
+    local -i changes=0
+    local -i lineno=0
+    local todel=()
     # depth increases if we go inside of ( or { and decreases if ) or }
-    depth=0
+    local -i depth=0
     # if state is true, then print, if false, not
-    state=(true)
+    local state=(true)
     # this represents other branch value in if then else or similar structures
-    branch=(true)
+    local branch=(true)
     # type of structure we are currently in, "", {}, ()
-    struct=("")
+    local struct=("")
     # KLUDGE: add some defaults too:
     declare -A defines=(
         [sulogin_pam]="false"
@@ -188,14 +194,19 @@ for a in "$@"; do
         (( lineno++ )) || :
         # printf "$state (%s:%d): (%s:%d) %s\n" "$a" "$lineno" "${state[*]}" "$depth" "$line"
 
-        out="$D"/"$(basename -- "$a" .te)"_"$lineno".te
+        local out="$D"/"$outbase"_"$lineno".te
         unset old_files["$out"]
+
+        if (( ${#todel[@]} > 1000 )); then
+            rm -f "${todel[@]}"
+            todel=()
+        fi
 
         if [ ! "$line" ]; then
             if [ -f "$out" ]; then
                 changes=1
             fi
-            outdel+=("$out" "${out%.te}".fc "${out%.te}".if)
+            todel+=("$out" "${out%.te}".fc "${out%.te}".if)
             continue
         fi
 
@@ -525,11 +536,11 @@ for a in "$@"; do
             if [ -f "$out" ]; then
                 changes=1
             fi
-            outdel+=("$out")
+            todel+=("$out")
             continue
         fi
 
-        if [ "$out" -nt "$a" ] && [ "$out" -nt "$0" ]; then
+        if [ "$out" -nt "$a" ]; then
             continue
         fi
         requires="$(gen_require "$line")"
@@ -541,24 +552,33 @@ for a in "$@"; do
             pre="$(printf "%s\nx" "$pre")"
             pre="${pre%x}"
         fi
-        printf "# source: %s\npolicy_module(%s_%d, 1.0.0)\n%s\n%s%s\n" "$a" "$(basename -- "$a" .te)" "$lineno" "$requires" "$pre" "$line" > "$out".tmp
+        printf "# source: %s\npolicy_module(%s_%d, 1.0.0)\n%s\n%s%s\n" "$a" "$outbase" "$lineno" "$requires" "$pre" "$line" > "$out".tmp
         if [ ! -f "$out" ] || ! cmp -s "$out".tmp "$out"; then
             mv -- "$out".tmp "$out"
             changes=1
         else
-            outdel+=("$out".tmp)
+            todel+=("$out".tmp)
         fi
     done < <(sed -r 's/^[[:space:]]*//;s/[[:space:]]*#.*//' "$a")
 
     if (( changes + ${#old_files[@]} )); then
         # If any of the files change, then we need to be sure there is no leftovers of old files
-        find tmp -type f -name "$(basename "$a" .te)_*" -delete
+        find tmp -type f -name "${outbase}_*" -delete
     fi
 
-    outdel+=("${!old_files[@]}")
+    if (( ${#todel[@]} )); then
+        rm -f "${todel[@]}"
+    fi
+
+    if (( ${#old_files[@]} )); then
+        rm -f "${!old_files[@]}"
+    fi
+}
+
+for a in "$@"; do
+    case "$a" in
+        *.te) handle_te "$a" ;;
+    esac
 done
 
-if (( ${#outdel[@]} + ${#old_files[@]} )); then
-    rm -f -- "${outdel[@]}" "${!old_files[@]}"
-fi
 rm -f "$D"/tokens.txt "$D"/requires.txt
