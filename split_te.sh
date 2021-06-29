@@ -467,10 +467,11 @@ for a in "$@"; do
             elif [[ "$line" =~ ^[a-zA-Z0-9_]+\( ]]; then
                 # interface rules
                 skip=0
-
-                # some interfaces do not work without having other interface before it
                 case "$line" in
+                    # interface does not work without having other interface before it
                     "apache_content_alias_template("*) pre="$(sed -r 's/^apache_content_alias_template\( */apache_content_template(/;s/[ ,].*/)/' <<< "$line")" ;;
+                    # works only in base module, just skip here
+                    "selinux_labeled_boolean("*) skip=1 ;;
                 esac
             elif [[ "$line" =~ ^(allow|auditallow|dontaudit|neverallow|allowxperm|auditallowxperm|dontauditxperm|neverallowxperm)\  ]]; then
                 # rules
