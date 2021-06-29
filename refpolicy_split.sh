@@ -61,6 +61,8 @@ while IFS='' read -d '' -r a && [ "$a" ]; do
 
     rm -rf split_lines tmp/all_interfaces.conf
 
+    make DESTDIR="$DESTDIR" tmp/all_interfaces.conf
+
     declare -i rc=0
     ./split_te.sh "$a" || rc=$?
     if (( rc )); then
