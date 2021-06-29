@@ -149,6 +149,20 @@ for a in "$@"; do
     branch=(true)
     # type of structure we are currently in, "", {}, ()
     struct=("")
+    # KLUDGE: add some defaults too:
+    declare -A defines=([sulogin_pam]="false")
+    declare -A bools=()
+    if [ ! -f tmp/all_interfaces.conf ]; then
+        echo "MISSING: tmp/all_interfaces.conf"
+        echo "maybe run: make"
+        exit 1
+    fi
+    # Some modules check interfaces using ifdef, so:
+    while read -r key; do
+        [ "$key" ] || continue
+        defines["$key"]="true"
+    done < <(sed  -nr 's/^[[:space:]]*define[(][`]'"([^']*)'"',[`] dnl$/\1/p' tmp/all_interfaces.conf)
+
     while read -r line; do
         (( lineno++ )) || :
         # printf "$state (%s:%d): (%s:%d) %s\n" "$a" "$lineno" "${state[*]}" "$depth" "$line"
@@ -190,19 +204,19 @@ for a in "$@"; do
         elif [[ "$line" =~ ^(ifdef|ifndef)\( ]]; then
             (( depth++ )) || :
             struct["$depth"]="()"
-            if [[ "$line" =~ ^ifdef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|init_systemd|ipa_helper_noatsecure|targeted_policy)\',\ *\`$ ]]; then
+            if [[ "$line" =~ ^ifdef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|init_systemd|targeted_policy)\',\ *\`$ ]]; then
                 # define true, value true
                 state["$depth"]="${state[$(((depth-1)))]}"
                 branch["$depth"]=false
-            elif [[ "$line" =~ ^ifdef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|enable_ubac|sulogin_no_pam|TODO)\',\ *\`$ ]]; then
+            elif [[ "$line" =~ ^ifdef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|enable_ubac|TODO)\',\ *\`$ ]]; then
                 # define false, value false
                 state["$depth"]=false
                 branch["$depth"]="${state[$(((depth-1)))]}"
-            elif [[ "$line" =~ ^ifndef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|enable_ubac|sulogin_no_pam|TODO)\',\ *\`$ ]]; then
+            elif [[ "$line" =~ ^ifndef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|enable_ubac|TODO)\',\ *\`$ ]]; then
                 # define false, value true
                 state["$depth"]="${state[$(((depth-1)))]}"
                 branch["$depth"]=false
-            elif [[ "$line" =~ ^ifndef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|init_systemd|ipa_helper_noatsecure|targeted_policy)\',\ *\`$ ]]; then
+            elif [[ "$line" =~ ^ifndef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|init_systemd|targeted_policy)\',\ *\`$ ]]; then
                 # define true, value false
                 state["$depth"]=false
                 branch["$depth"]="${state[$(((depth-1)))]}"
@@ -217,8 +231,46 @@ for a in "$@"; do
                     exit 1
                 fi
             else
-                printf "${state[$depth]:-} ifdef error(%s:%d): %s\n" "$a" "$lineno" "$line"
-                exit 1
+                declare -i kv_found=0
+                if [[ "$line" =~ ^ifdef\(\`[^\']*\',\ *\`$ ]]; then
+                    key="${line#ifdef(\`}"
+                    key="${key%\',*}"
+                    value="${defines[$key]:-}"
+                    if [ "$value" ]; then
+                        if [ "$value" == "true" ]; then
+                            # define true, value true
+                            state["$depth"]="${state[$(((depth-1)))]}"
+                            branch["$depth"]=false
+                            kv_found=1
+                        elif [ "$value" == "false" ]; then
+                            # define true, value false
+                            state["$depth"]=false
+                            branch["$depth"]="${state[$(((depth-1)))]}"
+                            kv_found=1
+                        fi
+                    fi
+                elif [[ "$line" =~ ^ifndef\(\`[^\']*\',\ *\`$ ]]; then
+                    key="${line#ifndef(\`}"
+                    key="${key%\',*}"
+                    value="${defines[$key]:-}"
+                    if [ "$value" ]; then
+                        if [ "$value" == "true" ]; then
+                            # define false, value true
+                            state["$depth"]=false
+                            branch["$depth"]="${state[$(((depth-1)))]}"
+                            kv_found=1
+                        elif [ "$value" == "false" ]; then
+                            # define false, value false
+                            state["$depth"]="${state[$(((depth-1)))]}"
+                            branch["$depth"]=false
+                            kv_found=1
+                        fi
+                    fi
+                fi
+                if  (( !kv_found )); then
+                    printf "${state[$depth]:-} ifdef error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                    exit 1
+                fi
             fi
             if [ ! "${state[$depth]:-}" ]; then
                 printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
@@ -247,7 +299,93 @@ for a in "$@"; do
                 printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-        elif [[ "$line" =~ ^if\([^\)]*\)\ *\{$ ]]; then
+        elif [[ "$line" =~ ^if\ *\([^\)]*\)\ *\{$ ]]; then
+            declare -i kv_found=0
+            key="${line#*(}"
+            key="${key%)*}"
+            if [[ "$key" =~ [\!\&\|\ ] ]]; then
+                set -x
+                kv_found=1
+                value=
+                # complex logic
+                # so far handle: value && || !value
+                full_key="$key"
+                val=1
+                op=and
+                while [ "$full_key" ]; do
+                    if [ "$full_key" != "${full_key# }" ]; then
+                        full_key="${full_key# }"
+                        continue
+                    fi
+                    declare -i is_pos=1
+                    key=
+                    token="${full_key%% *}"
+                    if [ "$token" == "&&" ]; then
+                        full_key="${full_key#&&}"
+                        op="and"
+                        continue
+                    elif [ "$token" == "||" ]; then
+                        full_key="${full_key#||}"
+                        op="or"
+                        continue
+                    elif [[ "$token" =~ ^\! ]]; then
+                        full_key="${full_key#$token}"
+                        key="${token#!}"
+                        is_pos=0
+                    else
+                        full_key="${full_key#$token}"
+                        key="$token"
+                        is_pos=1
+                    fi
+                    [ "$key" ]
+                    case "$op" in
+                        "and")
+                            echo "$op pre val=$val $is_pos ${bools[$key]:-}"
+                            case "${bools[$key]:-}" in
+                                "true") (( val=(val && is_pos) )) || : ;;
+                                "false") (( val=(val && (!is_pos)) )) || : ;;
+                                *) kv_found=0; break ;;
+                            esac
+                            echo "$op post val=$val"
+                            ;;
+                        "or")
+                            echo "$op pre val=$val $is_pos ${bools[$key]:-}"
+                            case "${bools[$key]:-}" in
+                                "true") (( val=(val || is_pos) )) || : ;;
+                                "false") (( val=(val || (!is_pos)) )) || : ;;
+                                *) kv_found=0; break ;;
+                            esac
+                            echo "$op post val=$val"
+                            ;;
+                        *) kv_found=0; break ;;
+                    esac
+                done
+                if (( val )); then
+                    value="true"
+                else
+                    value="false"
+                fi
+                set +x
+            else
+                value="${bools[$key]:-}"
+            fi
+            if [ "$value" ]; then
+                if [ "$value" == "true" ]; then
+                    # define true, value true
+                    state["$depth"]="${state[$(((depth-1)))]}"
+                    branch["$depth"]=false
+                    kv_found=1
+                elif [ "$value" == "false" ]; then
+                    # define true, value false
+                    state["$depth"]=false
+                    branch["$depth"]="${state[$(((depth-1)))]}"
+                    kv_found=1
+                fi
+            fi
+            if  (( !kv_found )); then
+                printf "${state[$depth]:-} if error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
             (( depth++ )) || :
             struct["$depth"]="{}"
             state["$depth"]=false
@@ -307,7 +445,15 @@ for a in "$@"; do
                 printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-        elif [[ "$line" =~ ^(gen_bool|gen_tunable|policy_module)\([^\)]*\)$ ]]; then
+        elif [[ "$line" =~ ^gen_bool\([^\)]*\)$ ]]; then
+            # Save bool
+            bool="${line#gen_bool(}"
+            bool="${bool%)}"
+            bool_value="$bool"
+            bool="${bool%,*}"
+            bool_value="${bool_value#*,}"
+            bools["$bool"]="$bool_value"
+        elif [[ "$line" =~ ^(gen_tunable|policy_module)\([^\)]*\)$ ]]; then
             :
         elif [[ "$line" =~ ^# ]]; then
             :
