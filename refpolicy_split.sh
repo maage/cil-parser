@@ -64,13 +64,13 @@ while IFS='' read -d '' -r a && [ "$a" ]; do
     declare -i rc=0
     ./split_te.sh "$a" || rc=$?
     if (( rc )); then
-        ./split_te.sh "$a" > "$err" || :
+        ./split_te.sh "$a" > "$err" 2>&1 || :
     fi
 
     if (( ! rc )); then
-        make DESTDIR="$DESTDIR" -j"$(nproc)" "${tgt[@]}" || rc=$?
+        make DESTDIR="$DESTDIR" -j"$(nproc)" -k "${tgt[@]}" || rc=$?
         if (( rc )); then
-            make DESTDIR="$DESTDIR" "${tgt[@]}" > "$err" || :
+            make DESTDIR="$DESTDIR" "${tgt[@]}" > "$err" 2>&1 || :
         fi
     fi
 
