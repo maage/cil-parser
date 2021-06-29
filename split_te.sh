@@ -150,8 +150,29 @@ for a in "$@"; do
     # type of structure we are currently in, "", {}, ()
     struct=("")
     # KLUDGE: add some defaults too:
-    declare -A defines=([sulogin_pam]="false")
-    declare -A bools=()
+    declare -A defines=(
+        [sulogin_pam]="false"
+    )
+    # from tmp/global_bools.conf
+    declare -A bools=(
+        [allow_execheap]="false"
+        [allow_execmem]="false"
+        [allow_execmod]="false"
+        [allow_execstack]="false"
+        [allow_polyinstantiation]="false"
+        [allow_raw_memory_access]="false"
+        [allow_ypbind]="false"
+        [console_login]="true"
+        [global_ssp]="false"
+        [mail_read_content]="false"
+        [nfs_export_all_ro]="false"
+        [nfs_export_all_rw]="false"
+        [secure_mode]="false"
+        [use_nfs_home_dirs]="false"
+        [user_tcp_server]="false"
+        [user_udp_server]="false"
+        [use_samba_home_dirs]="false"
+    )
     if [ ! -f tmp/all_interfaces.conf ]; then
         echo "MISSING: tmp/all_interfaces.conf"
         echo "maybe run: make"
@@ -300,13 +321,12 @@ for a in "$@"; do
                 exit 1
             fi
         elif [[ "$line" =~ ^if\ *\([^\)]*\)\ *\{$ ]]; then
+            set -x
             declare -i kv_found=0
             key="${line#*(}"
             key="${key%)*}"
+            value=
             if [[ "$key" =~ [\!\&\|\ ] ]]; then
-                set -x
-                kv_found=1
-                value=
                 # complex logic
                 # so far handle: value && || !value
                 full_key="$key"
@@ -340,24 +360,24 @@ for a in "$@"; do
                     [ "$key" ]
                     case "$op" in
                         "and")
-                            echo "$op pre val=$val $is_pos ${bools[$key]:-}"
+                            echo "$op pre key=$key val=$val $is_pos ${bools[$key]:-}"
                             case "${bools[$key]:-}" in
                                 "true") (( val=(val && is_pos) )) || : ;;
                                 "false") (( val=(val && (!is_pos)) )) || : ;;
-                                *) kv_found=0; break ;;
+                                *) break ;;
                             esac
                             echo "$op post val=$val"
                             ;;
                         "or")
-                            echo "$op pre val=$val $is_pos ${bools[$key]:-}"
+                            echo "$op pre key=$key val=$val $is_pos ${bools[$key]:-}"
                             case "${bools[$key]:-}" in
                                 "true") (( val=(val || is_pos) )) || : ;;
                                 "false") (( val=(val || (!is_pos)) )) || : ;;
-                                *) kv_found=0; break ;;
+                                *) break ;;
                             esac
                             echo "$op post val=$val"
                             ;;
-                        *) kv_found=0; break ;;
+                        *) break ;;
                     esac
                 done
                 if (( val )); then
@@ -365,31 +385,36 @@ for a in "$@"; do
                 else
                     value="false"
                 fi
-                set +x
-            else
-                value="${bools[$key]:-}"
-            fi
-            if [ "$value" ]; then
-                if [ "$value" == "true" ]; then
-                    # define true, value true
-                    state["$depth"]="${state[$(((depth-1)))]}"
-                    branch["$depth"]=false
+                # if wholly eat full_key
+                if [ ! "$full_key" ]; then
                     kv_found=1
-                elif [ "$value" == "false" ]; then
-                    # define true, value false
-                    state["$depth"]=false
-                    branch["$depth"]="${state[$(((depth-1)))]}"
+                fi
+            else
+                echo "bool '$key' '${bools[$key]:-}'"
+                value="${bools[$key]:-}"
+                if [ "$value" ]; then
                     kv_found=1
                 fi
             fi
-            if  (( !kv_found )); then
+            set +x
+            if (( !kv_found )); then
                 printf "${state[$depth]:-} if error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
             (( depth++ )) || :
             struct["$depth"]="{}"
-            state["$depth"]=false
-            branch["$depth"]="${state[$(((depth-1)))]}"
+            if [ "$value" == "true" ]; then
+                # define true, value true
+                state["$depth"]="${state[$(((depth-1)))]}"
+                branch["$depth"]=false
+            elif [ "$value" == "false" ]; then
+                # define true, value false
+                state["$depth"]=false
+                branch["$depth"]="${state[$(((depth-1)))]}"
+            else
+                printf "${state[$depth]:-} if value error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
             if [ ! "${state[$depth]:-}" ]; then
                 printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
@@ -452,6 +477,12 @@ for a in "$@"; do
             bool_value="$bool"
             bool="${bool%,*}"
             bool_value="${bool_value#*,}"
+            while [ "$bool_value" != "${bool_value# }" ]; do
+                bool_value="${bool_value# }"
+            done
+            while [ "$bool_value" != "${bool_value% }" ]; do
+                bool_value="${bool_value% }"
+            done
             bools["$bool"]="$bool_value"
         elif [[ "$line" =~ ^(gen_tunable|policy_module)\([^\)]*\)$ ]]; then
             :
