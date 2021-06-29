@@ -20,11 +20,22 @@ export DESTDIR="$(readlink -f -- "$D"/tmp/install)"
 mkdir -p "$DESTDIR"/var/lib/selinux/targeted
 
 make_refpolicy() {
-    make DISTRO=redhat SYSTEMD=y WERROR=y UBAC=n DIRECT_INITRC=n MONOLITHIC=n MLS_CATS=1024 MCS_CATS=1024 UNK_PERMS=allow NAME=targeted TYPE=mcs DESTDIR="$DESTDIR" 'SEMODULE=/usr/sbin/semodule -v -p '"$DESTDIR"' -X 100 ' "$@"
+    make DESTDIR="$DESTDIR" 'SEMODULE=/usr/sbin/semodule -v -p '"$DESTDIR"' -X 100 ' "$@"
 }
 
 if [ ! -f "$DESTDIR"/usr/share/selinux/devel/Makefile ]; then
     pushd "$D"
+    sed -ri '
+s/^[# ]*?(TYPE *=).*/\1 mcs/;
+s/^[# ]*?(NAME *=).*/\1 targeted/;
+s/^[# ]*?(DISTRO *=).*/\1 redhat/;
+s/^[# ]*?(UNK_PERMS *=).*/\1 allow/;
+s/^[# ]*?(DIRECT_INITRC *=).*/\1 n/;
+s/^[# ]*?(SYSTEMD *=).*/\1 y/;
+s/^[# ]*?(MONOLITHIC *=).*/\1 n/;
+s/^[# ]*?(UBAC *=).*/\1 n/;
+s/^[# ]*?(WERROR *=).*/\1 y/;
+' build.conf
     make_refpolicy conf
     make_refpolicy -j$(nproc) load
     make_refpolicy NAME=devel install-headers
