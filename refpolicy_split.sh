@@ -8,6 +8,8 @@
 
 set -epux -o pipefail
 
+tgt=(dupes.txt)
+
 (( $# ))
 D="$1"
 
@@ -66,9 +68,9 @@ while IFS='' read -d '' -r a && [ "$a" ]; do
     fi
 
     if (( ! rc )); then
-        make DESTDIR="$DESTDIR" -j"$(nproc)" || rc=$?
+        make DESTDIR="$DESTDIR" -j"$(nproc)" "${tgt[@]}" || rc=$?
         if (( rc )); then
-            make DESTDIR="$DESTDIR" > "$err" || :
+            make DESTDIR="$DESTDIR" "${tgt[@]}" > "$err" || :
         fi
     fi
 
