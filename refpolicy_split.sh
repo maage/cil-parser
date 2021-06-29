@@ -61,14 +61,18 @@ while IFS='' read -d '' -r a && [ "$a" ]; do
 
     declare -i rc=0
     ./split_te.sh "$a" || rc=$?
-
-    if (( ! rc )); then
-        make DESTDIR="$DESTDIR" -j"$(nproc)" -k || rc=$?
+    if (( rc )); then
+        ./split_te.sh "$a" > "$err" || :
     fi
 
-    if (( rc )); then
-        touch "$err"
-    else
+    if (( ! rc )); then
+        make DESTDIR="$DESTDIR" -j"$(nproc)" || rc=$?
+        if (( rc )); then
+            make DESTDIR="$DESTDIR" > "$err" || :
+        fi
+    fi
+
+    if (( ! rc )); then
         touch "$ok"
     fi
 
