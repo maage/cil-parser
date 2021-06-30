@@ -2,16 +2,21 @@
 
 set -epu -o pipefail
 
+declare -A all_te=()
+while IFS='' read -d '' -r a && [ "$a" ]; do
+    f="${a##*/}"
+    all_te["$f"]="$a"
+done < <(find . -name '*.te' -type f -print0)
+
 get_te() {
     local a f te
     echo "# dupes"
     cat "$1"
     for a in "$@"; do
         echo "$a"
-        f="$(basename -- "$a" .cil.tosum)"
-        for te in */"$f".te; do
-            egrep ^ "$te" /dev/null
-        done
+        f="${a##*/}"
+        f="${f%.cil.tosum}".te
+        grep -E --with-filename -- ^ "${all_te[$f]}"
     done
 }
 
