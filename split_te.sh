@@ -482,7 +482,6 @@ handle_te() {
                 exit 1
             fi
         elif [[ "$line" =~ ^if\ *\([^\)]*\)\ *\{$ ]]; then
-            set -x
             declare -i kv_found=0
             key="${line#*(}"
             key="${key%)*}"
@@ -521,22 +520,22 @@ handle_te() {
                     [ "$key" ]
                     case "$op" in
                         "and")
-                            echo "$op pre key=$key val=$val $is_pos ${bools[$key]:-}"
+                            # echo "$op pre key=$key val=$val $is_pos ${bools[$key]:-}"
                             case "${bools[$key]:-}" in
                                 "true") (( val=(val && is_pos) )) || : ;;
                                 "false") (( val=(val && (!is_pos)) )) || : ;;
                                 *) break ;;
                             esac
-                            echo "$op post val=$val"
+                            # echo "$op post val=$val"
                             ;;
                         "or")
-                            echo "$op pre key=$key val=$val $is_pos ${bools[$key]:-}"
+                            # echo "$op pre key=$key val=$val $is_pos ${bools[$key]:-}"
                             case "${bools[$key]:-}" in
                                 "true") (( val=(val || is_pos) )) || : ;;
                                 "false") (( val=(val || (!is_pos)) )) || : ;;
                                 *) break ;;
                             esac
-                            echo "$op post val=$val"
+                            # echo "$op post val=$val"
                             ;;
                         *) break ;;
                     esac
@@ -551,13 +550,12 @@ handle_te() {
                     kv_found=1
                 fi
             else
-                echo "bool '$key' '${bools[$key]:-}'"
+                # echo "bool '$key' '${bools[$key]:-}'"
                 value="${bools[$key]:-}"
                 if [ "$value" ]; then
                     kv_found=1
                 fi
             fi
-            set +x
             if (( !kv_found )); then
                 printf "${state[$depth]:-} if error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
