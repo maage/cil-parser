@@ -617,9 +617,21 @@ handle_te() {
                 printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
+        elif [ "$line" == "} else {" ]; then
+            if [ "${struct[$depth]}" != "{}" ]; then
+                printf "${state[$depth]:-} bogus else: error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
+            tmp="${state[$depth]}"
+            state["$depth"]="${branch[$depth]}"
+            branch["$depth"]="$tmp"
+            if [ ! "${state[$depth]:-}" ]; then
+                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                exit 1
+            fi
         elif [[ "$line" =~ ^\',\ *\`$ ]]; then
             if [ "${struct[$depth]}" != "()" ]; then
-                printf "${state[$depth]:-} bogus ,: error(%s:%d): %s\n" "$a" "$lineno" "$line"
+                printf "${state[$depth]:-} bogus , (else): error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
             tmp="${state[$depth]}"
