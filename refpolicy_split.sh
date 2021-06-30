@@ -80,4 +80,4 @@ while IFS='' read -d '' -r a && [ "$a" ]; do
         touch "$ok"
     fi
 
-done < <(find "$D" -name '*.te' -type f -print0 | shuf -z)
+done < <((find "$D" -name '*.te' -type f -print0;find "$DESTDIR"/usr/share/selinux/devel -name '*.if' -type f -print0) | shuf -z)
