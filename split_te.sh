@@ -131,6 +131,156 @@ gen_require() {
     '| sort -u
 }
 
+if_gen_require() {
+    (( $# )) || return 0
+    printf "require {\n"
+    local -A seen=()
+    for r in "${requiresa[@]}"; do
+        if [ "${seen[$r]:-}" ]; then
+            continue
+        fi
+        printf "%s\n" "$r"
+        seen["$r"]=1
+    done
+    printf "}\nx"
+}
+
+handle_if() {
+    local a="$1"; shift
+
+    local outbase="${a##*/}"
+    outbase="${outbase%.if}"xif
+
+    declare -A old_files=()
+    for old in "$D"/"$outbase"_*.te; do
+        [ -f "$old" ] || continue
+        old_files["$old"]=1
+    done
+
+    local -i changes=0
+    local -i lineno=0
+    local state=out
+    local ptypes=()
+    local ifa=
+    local todel=()
+
+    while read -r line; do
+        (( lineno++ )) || :
+
+        local out="$D"/"$outbase"_"$lineno".te
+        unset old_files["$out"]
+
+        if (( ${#todel[@]} > 1000 )); then
+            rm -f "${todel[@]}"
+            todel=()
+        fi
+
+        if [ ! "$line" ]; then
+            if [ -f "$out" ]; then
+                changes=1
+            fi
+            todel+=("$out" "${out%.te}".fc "${out%.te}".if)
+            continue
+        fi
+
+        skip=1
+
+        if [[ "$state" == "out" ]]; then
+            if [ "$line" == "## <summary>" ]; then
+                state=in
+            elif [[ "$line" =~ ^##\ \<param ]]; then
+                echo "ERROR($a:$lineno): $line"
+                exit 1
+            elif [[ "$line" =~ ^interface ]]; then
+                echo "ERROR($a:$lineno): $line"
+                exit 1
+            else
+                :
+            fi
+        elif [[ "$state" == "in" ]]; then
+            if [[ "$line" =~ ^##\ \<param\ name=\"[^\"]*\".*optional=\"true\" ]]; then
+                :
+            elif [[ "$line" =~ ^##\ \<param\ name=\"[^\"]*\" ]]; then
+                local ptype="${line#\#\# <param name=\"}"
+                ptype="${ptype%%\"*}"
+                ptypes+=("$ptype")
+            elif [[ "$line" =~ ^interface\(\`[^\']*\' ]]; then
+                ifa="${line#interface(\`}"
+                ifa="${ifa%%\'*}"
+                state=out
+                case "$ifa" in
+                    selinux_labeled_boolean) ;;
+                    *) skip=0 ;;
+                esac
+            elif [[ "$line" =~ ^##\ \<summary\> ]]; then
+                ptypes=()
+                ifa=
+            else
+                :
+            fi
+        fi
+
+        if (( skip )); then
+            if [ -f "$out" ]; then
+                changes=1
+            fi
+            todel+=("$out")
+            continue
+        fi
+
+        if [ "$out" -nt "$a" ]; then
+            continue
+        fi
+
+        local requiresa=()
+        local params=() pt
+        for pt in "${ptypes[@]}"; do
+            case "$pt" in
+                domain|type|peer_domain|target_domain|source_domain|userdomain|entrypoint|entry_point|entry_file|file_type|filetype|pty_type|tmpfs_type|sock_file_type|script_file|user_domain|tty_type|sock_file|directory_type|init_script_file|home_type|object_type) requiresa+=("type bin_t;"); params+=("bin_t") ;;
+                "private type"|private_type) requiresa+=("type foo_t;") params+=("foo_t") ;;
+                class|object_class|object|"objectclass(es)") requiresa+=("class file read;"); params+=("file") ;;
+                role) requiresa+=("role system_r;"); params+=("system_r") ;;
+                user_role) requiresa+=("role user_r;"); params+=("user_r") ;;
+                role_prefix) params+=("user") ;;
+                tunable|boolean) params+=("foo_tunable") ;;
+                range) params+=("s0 - s0") ;;
+                filename|file) params+=('"foo"') ;;
+                *) echo "MISSING: $pt"; exit  1 ;;
+            esac
+        done
+
+        ifa+="("
+        local p
+        for p in "${params[@]}"; do
+            ifa+="$p, "
+        done
+        ifa="${ifa%, }"
+        ifa+=")"
+        requires="$(if_gen_require "${requiresa[@]}")"
+        printf "# source: %s\npolicy_module(%s_%d, 1.0.0)\n%s%s\n" "$a" "$outbase" "$lineno" "${requires%x}" "$ifa" > "$out".tmp
+        if [ ! -f "$out" ] || ! cmp -s "$out".tmp "$out"; then
+            mv -- "$out".tmp "$out"
+            changes=1
+        else
+            todel+=("$out".tmp)
+        fi
+        ptypes=()
+        ifa=
+    done < <(sed -r 's/^[[:space:]]*(interface|## <param name=|## <summary)(.*)/\1\2/;t a;s/.*//;:a' "$a")
+
+    if (( changes + ${#old_files[@]} )); then
+        # If any of the files change, then we need to be sure there is no leftovers of old files
+        find tmp -type f -name "${outbase}_*" -delete
+    fi
+
+    if (( ${#todel[@]} )); then
+        rm -f "${todel[@]}"
+    fi
+
+    if (( ${#old_files[@]} )); then
+        rm -f "${!old_files[@]}"
+    fi
+}
 
 handle_te() {
     local a="$1"; shift
@@ -577,6 +727,7 @@ handle_te() {
 
 for a in "$@"; do
     case "$a" in
+        *.if) handle_if "$a" ;;
         *.te) handle_te "$a" ;;
     esac
 done
