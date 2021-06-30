@@ -310,6 +310,7 @@ handle_te() {
     # KLUDGE: add some defaults too:
     declare -A defines=(
         [sulogin_pam]="false"
+        [sulogin_no_pam]="false"
     )
     # from tmp/global_bools.conf
     declare -A bools=(
