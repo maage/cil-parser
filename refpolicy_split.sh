@@ -59,7 +59,7 @@ while IFS='' read -d '' -r a && [ "$a" ]; do
     [ ! -f "$ok" ] || continue
     [ ! -f "$err" ] || continue
 
-    rm -rf sl tmp/all_interfaces.conf
+    rm -rf sl tmp/all_interfaces.conf tmp/*.cil tmp/*.tmp tmp/*.cil.tosum
 
     make DESTDIR="$DESTDIR" tmp/all_interfaces.conf
 
