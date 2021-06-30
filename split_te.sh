@@ -2,7 +2,7 @@
 
 set -epu -o pipefail
 
-D=split_lines
+D=sl
 
 mkdir -p "$D" tmp
 
@@ -693,6 +693,7 @@ handle_te() {
         if [ "$out" -nt "$a" ]; then
             continue
         fi
+
         requires="$(gen_require "$line")"
         if [ "$requires" ]; then
             requires="$(printf "require {\n%s\n}\n" "$requires")"

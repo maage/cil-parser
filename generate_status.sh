@@ -4,7 +4,7 @@ set -epu -o pipefail
 
 (( $# )) || exit 0
 
-D=split_lines
+D=sl
 
 set +e
 grep -El '^# found:' -- "$@" > "$D"/found.txt

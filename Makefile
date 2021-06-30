@@ -4,13 +4,13 @@ DESTDIR ?=
 
 exports = $(wildcard export/*.cil)
 tests = $(wildcard test/*.cil)
-split_lines = $(wildcard split_lines/*.te)
+split_lines = $(wildcard sl/*.te)
 
 .PRECIOUS: tmp/%.cil
 
-pp_split_lines = $(split_lines:split_lines/%.te=%.pp)
-split_lines_log = $(split_lines:split_lines/%.te=tmp/%.log)
-tmp_cils = $(split_lines:split_lines/%.te=tmp/%.cil)
+pp_split_lines = $(split_lines:sl/%.te=%.pp)
+split_lines_log = $(split_lines:sl/%.te=tmp/%.log)
+tmp_cils = $(split_lines:sl/%.te=tmp/%.cil)
 exports += $(tmp_cils)
 cil_sums = $(tmp_cils:%=%.tosum)
 
@@ -38,7 +38,7 @@ parsimonious-stubgen:
 
 myclean: clean
 	rm -f -- $(parsed_tests) status.txt dupes.txt
-	rm -rf split_lines UNKNOWN.egg-info .tox .mypy_cache
+	rm -rf sl UNKNOWN.egg-info .tox .mypy_cache
 
 .PHONY: all test commit tox parsimonious-install parsimonious-stubgen myclean
 

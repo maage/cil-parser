@@ -47,7 +47,7 @@ s/^[# ]*?(WERROR *=).*/\1 y/;
     ./export.sh "$DESTDIR"
 fi
 
-rm -rf split_lines
+rm -rf sl
 make DESTDIR="$DESTDIR" -j"$(nproc)" -k
 
 f=()
@@ -59,7 +59,7 @@ while IFS='' read -d '' -r a && [ "$a" ]; do
     [ ! -f "$ok" ] || continue
     [ ! -f "$err" ] || continue
 
-    rm -rf split_lines tmp/all_interfaces.conf
+    rm -rf sl tmp/all_interfaces.conf
 
     make DESTDIR="$DESTDIR" tmp/all_interfaces.conf
 
