@@ -54,9 +54,9 @@ f=()
 while IFS='' read -d '' -r a && [ "$a" ]; do
 
     ok=export/"${a##*/}".ok
-    err=export/"${a##*/}".err
-
     [ ! -f "$ok" ] || continue
+
+    err=export/"${a##*/}".err
     [ ! -f "$err" ] || continue
 
     rm -rf sl tmp/all_interfaces.conf tmp/*.cil tmp/*.tmp tmp/*.cil.tosum
