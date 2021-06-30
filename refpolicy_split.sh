@@ -53,8 +53,8 @@ make DESTDIR="$DESTDIR" -j"$(nproc)" -k
 f=()
 while IFS='' read -d '' -r a && [ "$a" ]; do
 
-    ok=export/"$(basename "$a")".ok
-    err=export/"$(basename "$a")".err
+    ok=export/"${a##*/}".ok
+    err=export/"${a##*/}".err
 
     [ ! -f "$ok" ] || continue
     [ ! -f "$err" ] || continue
