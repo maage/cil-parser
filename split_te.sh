@@ -510,6 +510,15 @@ handle_te() {
                         full_key="${full_key#||}"
                         op="or"
                         continue
+                    elif [ "$token" == "!" ]; then
+                        full_key="${full_key#$token}"
+                        while [ "$full_key" != "${full_key# }" ]; do
+                            full_key="${full_key# }"
+                        done
+                        token="${full_key%% *}"
+                        full_key="${full_key#$token}"
+                        key="$token"
+                        is_pos=0
                     elif [[ "$token" =~ ^\! ]]; then
                         full_key="${full_key#$token}"
                         key="${token#!}"
