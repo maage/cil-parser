@@ -237,14 +237,16 @@ handle_if() {
         for pt in "${ptypes[@]}"; do
             case "$pt" in
                 domain|type|peer_domain|target_domain|source_domain|userdomain|entrypoint|entry_point|entry_file|file_type|filetype|pty_type|tmpfs_type|sock_file_type|script_file|user_domain|tty_type|sock_file|directory_type|init_script_file|home_type|object_type) requiresa+=("type bin_t;"); params+=("bin_t") ;;
-                "private type"|private_type) requiresa+=("type foo_t;") params+=("foo_t") ;;
+                "private type"|private_type) requiresa+=("type foo_t;"); params+=("foo_t") ;;
                 class|object_class|object|"objectclass(es)") requiresa+=("class file read;"); params+=("file") ;;
-                role) requiresa+=("role system_r;"); params+=("system_r") ;;
+                role|source_role) requiresa+=("role system_r;"); params+=("system_r") ;;
                 user_role) requiresa+=("role user_r;"); params+=("user_r") ;;
-                role_prefix) params+=("user") ;;
+                role_prefix) requiresa+=("role user_r;"); params+=("user") ;;
+                userdomain_prefix) requiresa+=("type user_t;"); params+=("user") ;;
+                domain_prefix) requiresa+=("type foo_t;"); params+=("foo") ;;
                 tunable|boolean) params+=("foo_tunable") ;;
                 range) params+=("s0 - s0") ;;
-                filename|file) params+=('"foo"') ;;
+                filename|file|name) params+=('"foo"') ;;
                 *) echo "MISSING: $pt"; exit  1 ;;
             esac
         done
