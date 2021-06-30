@@ -58,12 +58,28 @@ tmp/%.cil: %.pp
 tmp/dupes.txt: tmp/sums.txt
 	awk '{print $$1}' tmp/sums.txt | sort | uniq -c | egrep -v ' 1 ' | awk '{print $$2}' > $@.tmp && mv -- $@.tmp $@
 
+# Make fails if there is too many args for a command
+define multi_arg_command =
+	$(1) $(wordlist      1, 1000,$(3)) > $(2).tmp
+	if [ "$(wordlist  1001, 2000,$(3))" ]; then $(1) $(wordlist  1001, 2000,$(3)) >> $(2).tmp; fi
+	if [ "$(wordlist  2001, 3000,$(3))" ]; then $(1) $(wordlist  2001, 3000,$(3)) >> $(2).tmp; fi
+	if [ "$(wordlist  3001, 4000,$(3))" ]; then $(1) $(wordlist  3001, 4000,$(3)) >> $(2).tmp; fi
+	if [ "$(wordlist  4001, 5000,$(3))" ]; then $(1) $(wordlist  4001, 5000,$(3)) >> $(2).tmp; fi
+	if [ "$(wordlist  5001, 6000,$(3))" ]; then $(1) $(wordlist  5001, 6000,$(3)) >> $(2).tmp; fi
+	if [ "$(wordlist  6001, 7000,$(3))" ]; then $(1) $(wordlist  6001, 7000,$(3)) >> $(2).tmp; fi
+	if [ "$(wordlist  7001, 8000,$(3))" ]; then $(1) $(wordlist  7001, 8000,$(3)) >> $(2).tmp; fi
+	if [ "$(wordlist  8001, 9000,$(3))" ]; then $(1) $(wordlist  8001, 9000,$(3)) >> $(2).tmp; fi
+	if [ "$(wordlist  9001,10000,$(3))" ]; then $(1) $(wordlist  9001,10000,$(3)) >> $(2).tmp; fi
+	if [ "$(wordlist 10001,11000,$(3))" ]; then exit 1; fi
+	mv -- $(2).tmp $(2)
+endef
+
 tmp/sums.txt: | tmp
 tmp/sums.txt: $(cil_sums)
 ifeq ($(cil_sums),)
 	touch $@
 else
-	sha256sum $^ > $@.tmp && mv -- $@.tmp $@
+	$(call multi_arg_command,sha256sum,$@,$(cil_sums))
 endif
 
 dupes.txt: tmp/dupes.txt tmp/sums.txt
@@ -73,7 +89,7 @@ tmp/%.log: tmp/%.cil tmp/_cache
 	$(PROG) --from-all-known --from $< > $@.tmp && mv -- $@.tmp $@
 
 status.txt: $(split_lines_log)
-	./generate_status.sh $^ > $@.tmp && mv -- $@.tmp $@
+	$(call multi_arg_command,./generate_status.sh,$@,$(split_lines_log))
 
 # selinux
 
