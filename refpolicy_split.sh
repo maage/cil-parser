@@ -38,7 +38,9 @@ s/^[# ]*?(MONOLITHIC *=).*/\1 n/;
 s/^[# ]*?(UBAC *=).*/\1 n/;
 s/^[# ]*?(WERROR *=).*/\1 y/;
 ' build.conf
-    make_refpolicy conf
+    if [ -f Changelog.contrib ]; then
+        make_refpolicy conf
+    fi
     make_refpolicy -j$(nproc) load
     make_refpolicy NAME=devel install-headers
     cp /usr/share/selinux/devel/Makefile "$DESTDIR"/usr/share/selinux/devel/Makefile
