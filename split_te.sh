@@ -157,6 +157,11 @@ handle_if() {
         old_files["$old"]=1
     done
 
+    local -i is_container=0
+    if [ "$outbase" == "containerxif" ]; then
+        is_container=1
+    fi
+
     local -i changes=0
     local -i lineno=0
     local state=out
@@ -192,8 +197,14 @@ handle_if() {
                 echo "ERROR($a:$lineno): $line"
                 exit 1
             elif [[ "$line" =~ ^interface ]]; then
-                echo "ERROR($a:$lineno): $line"
-                exit 1
+                if (( is_container )) && [[ "$line" =~ \`docker_ ]]; then
+                    # container.if has multiple undocumented docker_
+                    # interfaces that mirror container interfaces
+                    :
+                else
+                    echo "ERROR($a:$lineno): $line"
+                    exit 1
+                fi
             else
                 :
             fi
