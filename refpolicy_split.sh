@@ -16,7 +16,8 @@ D="$1"
 [ "$D" ]
 [ -d "$D" ]
 mkdir -p "$D"/tmp/install
-export DESTDIR="$(readlink -f -- "$D"/tmp/install)"
+DESTDIR="$(readlink -f -- "$D"/tmp/install)"
+export DESTDIR
 [ "$DESTDIR" ]
 [ -d "$DESTDIR" ]
 mkdir -p "$DESTDIR"/var/lib/selinux/targeted
@@ -41,7 +42,7 @@ s/^[# ]*?(WERROR *=).*/\1 y/;
     if [ -f Changelog.contrib ]; then
         make_refpolicy conf
     fi
-    make_refpolicy -j$(nproc) load
+    make_refpolicy -j"$(nproc)" load
     make_refpolicy NAME=devel install-headers
     cp /usr/share/selinux/devel/Makefile "$DESTDIR"/usr/share/selinux/devel/Makefile
     sed -ri 's,(SHAREDIR :=).*,\1 '"$DESTDIR"/usr/share/selinux',' "$DESTDIR"/usr/share/selinux/devel/Makefile
@@ -52,7 +53,6 @@ fi
 rm -rf sl
 make DESTDIR="$DESTDIR" -j"$(nproc)" -k
 
-f=()
 while IFS='' read -d '' -r a && [ "$a" ]; do
 
     ok=export/"${a##*/}".ok
