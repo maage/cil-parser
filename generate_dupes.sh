@@ -9,9 +9,8 @@ while IFS='' read -d '' -r a && [ "$a" ]; do
 done < <(find . -name '*.te' -type f -print0)
 
 get_te() {
-    local a f te
-    echo "# dupes"
-    < "$1"
+    local a f
+    printf "# dupes\n%s" "$(<"$1")"
     for a in "$@"; do
         echo "$a"
         f="${a##*/}"
