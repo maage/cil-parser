@@ -11,7 +11,7 @@ done < <(find . -name '*.te' -type f -print0)
 get_te() {
     local a f te
     echo "# dupes"
-    cat "$1"
+    < "$1"
     for a in "$@"; do
         echo "$a"
         f="${a##*/}"
