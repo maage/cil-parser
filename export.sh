@@ -23,7 +23,6 @@ SEMODULE=(semodule -p "$DESTDIR")
 mkdir -p export/tmp
 pushd export/tmp
 
-oldfiles=()
 args=()
 for a in $("${SEMODULE[@]}" -l); do
     args+=(--cil --extract="$a")
