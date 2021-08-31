@@ -271,7 +271,7 @@ handle_if() {
                 tunable|boolean) params+=("foo_tunable") ;;
                 range) params+=("s0 - s0") ;;
                 filename|file|name) params+=('"foo"') ;;
-                *) print "MISSING: %s\n" "$pt"; exit  1 ;;
+                *) printf "MISSING: %s\n" "$pt"; exit  1 ;;
             esac
         done
 
