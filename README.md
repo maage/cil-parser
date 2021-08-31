@@ -59,7 +59,7 @@ $ ./simple-cil-parser.py --from foo.cil export/*.cil
 
 Workflow:
 ```
-$ ./split_te.sh your_module.te
+$ ./split_te.sh -- your_module.te
 $ rm -f export/your_module.*
 $ make -j $(nproc)
 $ ls -l *.txt

@@ -66,9 +66,9 @@ while IFS='' read -d '' -r a && [ "$a" ]; do
     make DESTDIR="$DESTDIR" tmp/all_interfaces.conf
 
     declare -i rc=0
-    ./split_te.sh "$a" || rc=$?
+    ./split_te.sh -- "$a" || rc=$?
     if (( rc )); then
-        ./split_te.sh "$a" > "$err" 2>&1 || :
+        ./split_te.sh -- "$a" > "$err" 2>&1 || :
     fi
 
     if (( ! rc )); then
