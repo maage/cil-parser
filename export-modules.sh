@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -epu -o pipefail
+
 mkdir -p export/tmp
 
 pushd export/tmp
