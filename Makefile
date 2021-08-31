@@ -60,7 +60,7 @@ tmp/dupes.txt: tmp/sums.txt
 
 # Make fails if there is too many args for a command
 define multi_arg_command =
-	$(1) $(wordlist      1, 1000,$(3)) > $(2).tmp
+	                                            $(1) $(wordlist     1, 1000,$(3)) >  $(2).tmp
 	if [ "$(wordlist  1001, 2000,$(3))" ]; then $(1) $(wordlist  1001, 2000,$(3)) >> $(2).tmp; fi
 	if [ "$(wordlist  2001, 3000,$(3))" ]; then $(1) $(wordlist  2001, 3000,$(3)) >> $(2).tmp; fi
 	if [ "$(wordlist  3001, 4000,$(3))" ]; then $(1) $(wordlist  3001, 4000,$(3)) >> $(2).tmp; fi
