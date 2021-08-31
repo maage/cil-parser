@@ -110,7 +110,7 @@ gen_require() {
                 ll="${ll#*\{}"
                 readarray -d ' ' l2 <<< "${ll%%\}*}"
                 for l4 in "${l2[@]}"; do
-                    l4="$(printf "%s" "$l4" | sed 's/^ *//;s/ *$//;/./!d')"
+                    l4="$(printf "%s" "$l4" | sed -r 's/^ *//;s/ *$//;/./!d')"
                     [ "$l4" ] || continue
                     printf "class %s %s\n" "$l4" "$l3" | sed -r 's/ *~ */ /;s/\*/getattr/'
                 done
@@ -125,7 +125,7 @@ gen_require() {
                 ll="$line"
                 while [[ "$ll" =~ \{.*\} ]]; do
                     ll="${ll#*\{}"
-                    printf "%s\n" "${ll%%\}*}" | sed 's/ /\n/g;' | filter_require
+                    printf "%s\n" "${ll%%\}*}" | sed -r 's/ /\n/g;' | filter_require
                     ll="${ll#*\}}"
                 done
                 line="$(sed -r 's/[{][^}]*[}]/*/g;' <<< "$line")"
@@ -138,7 +138,7 @@ gen_require() {
             s/^([^ ]*) +([^ ;]*);?/\1\n\2/;
             ' <<< "$line" | filter_require
         fi
-    ) | sed '
+    ) | sed -r '
     /^class [^ ]*_class_set /d;
     /./!d;
     '| sort -u
