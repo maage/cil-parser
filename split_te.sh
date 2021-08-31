@@ -189,7 +189,7 @@ handle_if() {
         unset old_files["$out"]
 
         if (( ${#todel[@]} > 1000 )); then
-            rm -f "${todel[@]}"
+            rm -f -- "${todel[@]}"
             todel=()
         fi
 
@@ -300,11 +300,11 @@ handle_if() {
     fi
 
     if (( ${#todel[@]} )); then
-        rm -f "${todel[@]}"
+        rm -f -- "${todel[@]}"
     fi
 
     if (( ${#old_files[@]} )); then
-        rm -f "${!old_files[@]}"
+        rm -f -- "${!old_files[@]}"
     fi
 }
 
@@ -408,7 +408,7 @@ handle_te() {
         unset old_files["$out"]
 
         if (( ${#todel[@]} > 1000 )); then
-            rm -f "${todel[@]}"
+            rm -f -- "${todel[@]}"
             todel=()
         fi
 
@@ -753,11 +753,11 @@ handle_te() {
     fi
 
     if (( ${#todel[@]} )); then
-        rm -f "${todel[@]}"
+        rm -f -- "${todel[@]}"
     fi
 
     if (( ${#old_files[@]} )); then
-        rm -f "${!old_files[@]}"
+        rm -f -- "${!old_files[@]}"
     fi
 }
 
@@ -768,4 +768,4 @@ for a in "$@"; do
     esac
 done
 
-rm -f "$D"/tokens.txt "$D"/requires.txt
+rm -f -- "$D"/tokens.txt "$D"/requires.txt
