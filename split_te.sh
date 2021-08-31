@@ -761,12 +761,15 @@ handle_te() {
 }
 
 for a in "$@"; do
+    # set | grep -Ev '^BASH_REMATCH=|^_=|^PIPESTATUS=' > vars1
     case "$a" in
         *.if) handle_if "$a" ;;
         *.te) handle_te "$a" ;;
         *.fc) ;;
         *) printf "ERROR(%s): Unknown filetype\n" "$a"; exit 1 ;;
     esac
+    # set | grep -Ev '^BASH_REMATCH=|^_=|^PIPESTATUS=' > vars2
+    # diff -u vars1 vars2
 done
 
 rm -f -- "$D"/tokens.txt "$D"/requires.txt
