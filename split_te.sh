@@ -335,10 +335,9 @@ swap_state_branch() {
     local -n state_="$1"; shift
     local -n branch_="$1"; shift
     local -n depth_="$1"; shift
-    local tmp
-    tmp="${state[$depth]}"
-    state["$depth"]="${branch[$depth]}"
-    branch["$depth"]="$tmp"
+    local tmp="${state_[$depth_]}"
+    state_["$depth_"]="${branch_[$depth_]}"
+    branch_["$depth_"]="$tmp"
 }
 
 handle_te() {
