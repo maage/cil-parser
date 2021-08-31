@@ -765,6 +765,8 @@ for a in "$@"; do
     case "$a" in
         *.if) handle_if "$a" ;;
         *.te) handle_te "$a" ;;
+        *.fc) ;;
+        *) printf "ERROR(%s): Unknown filetype\n" "$a"; exit 1 ;;
     esac
 done
 
