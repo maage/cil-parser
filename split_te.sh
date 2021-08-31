@@ -341,7 +341,7 @@ swap_state_branch() {
 }
 
 handle_te() {
-    local a_="$1"; shift
+    local a="$1"; shift
 
     local outbase="${a##*/}"
     outbase="${outbase%.te}"
