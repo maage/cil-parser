@@ -7,11 +7,11 @@ declare -i OPT_kludge_dev=0
 
 while (( $# )); do
     case "$1" in
-        --directory) (( $# > 1 )) || { echo "ERROR: $0 $*"; exit 2; }; D="$2"; shift 2 ;;
+        --directory) (( $# > 1 )) || { printf "ERROR: %s %s\n" "$0" "$*"; exit 2; }; D="$2"; shift 2 ;;
         --directory=*) D="${1#--directory=}"; shift ;;
         --kludge-dev) OPT_kludge_dev=1; shift ;;
         --) shift; break ;;
-        *) echo "ERROR: $0 $*"; exit 2 ;;
+        *) printf "ERROR: %s %s\n" "$0" "$*"; exit 2 ;;
     esac
 done
 
@@ -207,7 +207,7 @@ handle_if() {
             if [ "$line" == "## <summary>" ]; then
                 state=in
             elif [[ "$line" =~ ^##\ \<param ]]; then
-                echo "ERROR($a:$lineno): $line"
+                printf "ERROR(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             elif [[ "$line" =~ ^interface ]]; then
                 if (( is_container )) && [[ "$line" =~ \`docker_ ]]; then
@@ -215,7 +215,7 @@ handle_if() {
                     # interfaces that mirror container interfaces
                     :
                 else
-                    echo "ERROR($a:$lineno): $line"
+                    printf "ERROR(%s:%d): %s\n" "$a" "$lineno" "$line"
                     exit 1
                 fi
             else
@@ -271,7 +271,7 @@ handle_if() {
                 tunable|boolean) params+=("foo_tunable") ;;
                 range) params+=("s0 - s0") ;;
                 filename|file|name) params+=('"foo"') ;;
-                *) echo "MISSING: $pt"; exit  1 ;;
+                *) print "MISSING: %s\n" "$pt"; exit  1 ;;
             esac
         done
 
@@ -357,8 +357,8 @@ handle_te() {
         [use_samba_home_dirs]="false"
     )
     if [ ! -f tmp/all_interfaces.conf ]; then
-        echo "MISSING: tmp/all_interfaces.conf"
-        echo "maybe run: make"
+        printf "MISSING: tmp/all_interfaces.conf\n"
+        printf "maybe run: make\n"
         exit 1
     fi
     # Some modules check interfaces using ifdef, so:
