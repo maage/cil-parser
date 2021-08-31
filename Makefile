@@ -79,7 +79,7 @@ tmp/sums.txt: $(cil_sums)
 ifeq ($(cil_sums),)
 	touch $@
 else
-	$(call multi_arg_command,sha256sum,$@,$(cil_sums))
+	$(call multi_arg_command,sha256sum,$@,$^)
 endif
 
 dupes.txt: tmp/dupes.txt tmp/sums.txt
@@ -89,7 +89,7 @@ tmp/%.log: tmp/%.cil tmp/_cache
 	$(PROG) --from-all-known --from $< > $@.tmp && mv -- $@.tmp $@
 
 status.txt: $(split_lines_log)
-	$(call multi_arg_command,./generate_status.sh,$@,$(split_lines_log))
+	$(call multi_arg_command,./generate_status.sh,$@,$^)
 
 # selinux
 
