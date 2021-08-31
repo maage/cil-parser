@@ -308,8 +308,41 @@ handle_if() {
     fi
 }
 
+pop_state() {
+    local -n struct_="$1"; shift
+    local -n state_="$1"; shift
+    local -n branch_="$1"; shift
+    local -n depth_="$1"; shift
+    unset struct_["$depth_"]
+    unset state_["$depth_"]
+    unset branch_["$depth_"]
+    (( depth_-- )) || :
+}
+
+check_depth() {
+    local -n state_="$1"; shift
+    local -n depth_="$1"; shift
+    local -n a_="$1"; shift
+    local -n lineno_="$1"; shift
+    local -n line_="$1"; shift
+    if [ ! "${state_[$depth_]:-}" ]; then
+        printf "${state_[*]} depth undefined error(%s:%d): %s\n" "$a_" "$lineno_" "$line_"
+        exit 1
+    fi
+}
+
+swap_state_branch() {
+    local -n state_="$1"; shift
+    local -n branch_="$1"; shift
+    local -n depth_="$1"; shift
+    local tmp
+    tmp="${state[$depth]}"
+    state["$depth"]="${branch[$depth]}"
+    branch["$depth"]="$tmp"
+}
+
 handle_te() {
-    local a="$1"; shift
+    local a_="$1"; shift
 
     local outbase="${a##*/}"
     outbase="${outbase%.te}"
@@ -406,10 +439,7 @@ handle_te() {
                 printf "${state[$depth]:-} bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-            if [ ! "${state[$depth]:-}" ]; then
-                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
-                exit 1
-            fi
+            check_depth state depth a lineno line
         elif [[ "$line" =~ ^(ifdef|ifndef)\( ]]; then
             (( depth++ )) || :
             struct["$depth"]="()"
@@ -431,14 +461,8 @@ handle_te() {
                 branch["$depth"]="${state[$(((depth-1)))]}"
             elif [[ "$line" =~ ^ifdef\(\`[^\)]*\',\ *\`define\([^\)]*\)\'\)$ ]]; then
                 # immediately back depth
-                unset struct["$depth"]
-                unset state["$depth"]
-                unset branch["$depth"]
-                (( depth-- )) || :
-                if [ ! "${state[$depth]:-}" ]; then
-                    printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
-                    exit 1
-                fi
+                pop_state struct state branch depth
+                check_depth state depth a lineno line
             else
                 declare -i kv_found=0
                 if [[ "$line" =~ ^ifdef\(\`[^\']*\',\ *\`$ ]]; then
@@ -481,10 +505,7 @@ handle_te() {
                     exit 1
                 fi
             fi
-            if [ ! "${state[$depth]:-}" ]; then
-                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
-                exit 1
-            fi
+            check_depth state depth a lineno line
         elif [[ "$line" =~ ^(tunable_policy)\( ]]; then
             (( depth++ )) || :
             struct["$depth"]="()"
@@ -495,19 +516,12 @@ handle_te() {
                 printf "${state[$depth]:-} bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-            if [ ! "${state[$depth]:-}" ]; then
-                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
-                exit 1
-            fi
         elif [[ "$line" =~ ^require\ *\{$ ]]; then
             (( depth++ )) || :
             struct["$depth"]="{}"
             state["$depth"]=false
             branch["$depth"]="${state[$(((depth-1)))]}"
-            if [ ! "${state[$depth]:-}" ]; then
-                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
-                exit 1
-            fi
+            check_depth state depth a lineno line
         elif [[ "$line" =~ ^if\ *\([^\)]*\)\ *\{$ ]]; then
             declare -i kv_found=0
             key="${line#*(}"
@@ -610,10 +624,7 @@ handle_te() {
                 printf "${state[$depth]:-} if value error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-            if [ ! "${state[$depth]:-}" ]; then
-                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
-                exit 1
-            fi
+            check_depth state depth a lineno line
         elif [ "$line" = "}" ]; then
             if (( depth == 0 )); then
                 printf "${state[$depth]:-} depth < 0: error(%s:%d): %s\n" "$a" "$lineno" "$line"
@@ -623,14 +634,8 @@ handle_te() {
                 printf "${state[$depth]:-} bogus }: error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-            unset struct["$depth"]
-            unset state["$depth"]
-            unset branch["$depth"]
-            (( depth-- )) || :
-            if [ ! "${state[$depth]:-}" ]; then
-                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
-                exit 1
-            fi
+            pop_state struct state branch depth
+            check_depth state depth a lineno line
         elif [[ "$line" =~ \'\) ]]; then
             if [[ "$line" =~ ^\'\)(\ *dnl\ .*)?$ ]]; then
                 if (( depth == 0 )); then
@@ -645,38 +650,22 @@ handle_te() {
                 printf "${state[$depth]:-} bad error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-            unset struct["$depth"]
-            unset state["$depth"]
-            unset branch["$depth"]
-            (( depth-- )) || :
-            if [ ! "${state[$depth]:-}" ]; then
-                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
-                exit 1
-            fi
+            pop_state struct state branch depth
+            check_depth state depth a lineno line
         elif [ "$line" == "} else {" ]; then
             if [ "${struct[$depth]}" != "{}" ]; then
                 printf "${state[$depth]:-} bogus else: error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-            tmp="${state[$depth]}"
-            state["$depth"]="${branch[$depth]}"
-            branch["$depth"]="$tmp"
-            if [ ! "${state[$depth]:-}" ]; then
-                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
-                exit 1
-            fi
+            swap_state_branch state branch depth
+            check_depth state depth a lineno line
         elif [[ "$line" =~ ^\',\ *\`$ ]]; then
             if [ "${struct[$depth]}" != "()" ]; then
                 printf "${state[$depth]:-} bogus , (else): error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-            tmp="${state[$depth]}"
-            state["$depth"]="${branch[$depth]}"
-            branch["$depth"]="$tmp"
-            if [ ! "${state[$depth]:-}" ]; then
-                printf "${state[*]} depth undefined error(%s:%d): %s\n" "$a" "$lineno" "$line"
-                exit 1
-            fi
+            swap_state_branch state branch depth
+            check_depth state depth a lineno line
         elif [[ "$line" =~ ^gen_bool\([^\)]*\)$ ]]; then
             # Save bool
             bool="${line#gen_bool(}"
