@@ -165,6 +165,7 @@ handle_if() {
     outbase="${outbase%.if}"xif
 
     declare -A old_files=()
+    local old
     for old in "$D"/"$outbase"_*.te; do
         [ -f "$old" ] || continue
         old_files["$old"]=1
@@ -175,6 +176,7 @@ handle_if() {
         is_container=1
     fi
 
+    local line=
     local -i changes=0
     local -i lineno=0
     local state=out
@@ -201,7 +203,7 @@ handle_if() {
             continue
         fi
 
-        skip=1
+        local -i skip=1
 
         if [[ "$state" == "out" ]]; then
             if [ "$line" == "## <summary>" ]; then
@@ -282,6 +284,7 @@ handle_if() {
         done
         ifa="${ifa%, }"
         ifa+=")"
+        local requires
         requires="$(if_gen_require "${requiresa[@]}")"
         printf "# source: %s\npolicy_module(%s_%d, 1.0.0)\n%s%s\n" "$a" "$outbase" "$lineno" "${requires%x}" "$ifa" > "$out".tmp
         if [ ! -f "$out" ] || ! cmp -s "$out".tmp "$out"; then
@@ -347,11 +350,13 @@ handle_te() {
     outbase="${outbase%.te}"
 
     declare -A old_files=()
+    local old
     for old in "$D"/"$outbase"_*.te; do
         [ -f "$old" ] || continue
         old_files["$old"]=1
     done
 
+    local line=
     local -i changes=0
     local -i lineno=0
     local todel=()
@@ -394,6 +399,7 @@ handle_te() {
         exit 1
     fi
     # Some modules check interfaces using ifdef, so:
+    local key
     while read -r key; do
         [ "$key" ] || continue
         defines["$key"]="true"
@@ -419,8 +425,8 @@ handle_te() {
             continue
         fi
 
-        skip=1
-        pre=
+        local -i skip=1
+        local pre=
 
         # first go over different lines where we change state, but do not output
         # last go over known states and output if state allows
@@ -465,7 +471,7 @@ handle_te() {
             else
                 declare -i kv_found=0
                 if [[ "$line" =~ ^ifdef\(\`[^\']*\',\ *\`$ ]]; then
-                    key="${line#ifdef(\`}"
+                    local key="${line#ifdef(\`}"
                     key="${key%\',*}"
                     value="${defines[$key]:-}"
                     if [ "$value" ]; then
@@ -482,7 +488,7 @@ handle_te() {
                         fi
                     fi
                 elif [[ "$line" =~ ^ifndef\(\`[^\']*\',\ *\`$ ]]; then
-                    key="${line#ifndef(\`}"
+                    local key="${line#ifndef(\`}"
                     key="${key%\',*}"
                     value="${defines[$key]:-}"
                     if [ "$value" ]; then
@@ -523,7 +529,7 @@ handle_te() {
             check_depth state depth a lineno line
         elif [[ "$line" =~ ^if\ *\([^\)]*\)\ *\{$ ]]; then
             declare -i kv_found=0
-            key="${line#*(}"
+            local key="${line#*(}"
             key="${key%)*}"
             value=
             if [[ "$key" =~ [\!\&\|\ ] ]]; then
@@ -728,6 +734,7 @@ handle_te() {
             continue
         fi
 
+        local requires
         requires="$(gen_require "$line")"
         if [ "$requires" ]; then
             requires="$(printf "require {\n%s\n}\n" "$requires")"
