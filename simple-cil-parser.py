@@ -1,5 +1,9 @@
 #!/usr/bin/python3
 
+# SPDX-FileCopyrightText: 2021 Markus Linnala <markus.linnala@cybercom.com>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import argparse
 from collections import defaultdict
 import copy

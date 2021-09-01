@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2021 Erik Rose
+#
+# SPDX-License-Identifier: MIT
+
 from parsimonious.exceptions import UndefinedLabel as UndefinedLabel, VisitationError as VisitationError
 from parsimonious.expressions import Expression
 from parsimonious.grammar import Grammar

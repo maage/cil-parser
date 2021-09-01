@@ -2,4 +2,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0
 
-(typeattributeset base_typeattr_18 (not (scsi_generic_write storage_unconfined_type ) ))
+(_test foo_t )
+(_test foo_t bar_t )
+(_test foo_t)
+(_test foo_t bar_t)

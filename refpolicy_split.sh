@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# SPDX-FileCopyrightText: 2021 Markus Linnala <markus.linnala@cybercom.com>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # To ensure split_te works for all kinds of policies, this iterates over
 # refpolicy variant for example:
 # - SELinuxProject/refpolicy

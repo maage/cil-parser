@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2021 Erik Rose
+#
+# SPDX-License-Identifier: MIT
+
 from typing import Any
 
 class StrAndRepr: ...

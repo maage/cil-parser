@@ -1,1 +1,5 @@
+; SPDX-FileCopyrightText: 2021 Markus Linnala <markus.linnala@cybercom.com>
+;
+; SPDX-License-Identifier: Apache-2.0
+
 (sidcontext devnull (system_u object_r null_device_t ((s0) (s0))))

@@ -1,3 +1,7 @@
+; SPDX-FileCopyrightText: 2021 Markus Linnala <markus.linnala@cybercom.com>
+;
+; SPDX-License-Identifier: Apache-2.0
+
 (booleanif (abrt_upload_watch_anon_write)
     (true
         (allow abrt_upload_watch_t public_content_rw_t (lnk_file (ioctl read write create getattr setattr lock append unlink link rename watch watch_reads)))

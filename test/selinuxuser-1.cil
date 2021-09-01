@@ -1,3 +1,7 @@
+; SPDX-FileCopyrightText: 2021 Markus Linnala <markus.linnala@cybercom.com>
+;
+; SPDX-License-Identifier: Apache-2.0
+
 (selinuxuser root unconfined_u ((s0) (s0((range c0 c1023) ))))
 (selinuxuserdefault unconfined_u ((s0) (s0((range c0 c1023) ))))
 (userprefix user_u user)

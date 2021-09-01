@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2021 Erik Rose
+#
+# SPDX-License-Identifier: MIT
+
 from collections import OrderedDict
 from parsimonious.exceptions import BadGrammar as BadGrammar, UndefinedLabel as UndefinedLabel
 from parsimonious.expressions import Literal as Literal, Lookahead as Lookahead, Not as Not, OneOf as OneOf, OneOrMore as OneOrMore, Optional as Optional, Regex as Regex, Sequence as Sequence, TokenMatcher as TokenMatcher, ZeroOrMore as ZeroOrMore, expression as expression

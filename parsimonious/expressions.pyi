@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2021 Erik Rose
+#
+# SPDX-License-Identifier: MIT
+
 from parsimonious.exceptions import IncompleteParseError as IncompleteParseError, ParseError as ParseError
 from parsimonious.nodes import Node as Node, RegexNode as RegexNode
 from parsimonious.utils import StrAndRepr as StrAndRepr

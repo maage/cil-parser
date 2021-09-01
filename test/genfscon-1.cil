@@ -1,1 +1,5 @@
+; SPDX-FileCopyrightText: 2021 Markus Linnala <markus.linnala@cybercom.com>
+;
+; SPDX-License-Identifier: Apache-2.0
+
 (genfscon 9p / (system_u object_r nfs_t ((s0) (s0))))

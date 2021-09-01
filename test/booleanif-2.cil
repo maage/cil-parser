@@ -1,3 +1,7 @@
+; SPDX-FileCopyrightText: 2021 Markus Linnala <markus.linnala@cybercom.com>
+;
+; SPDX-License-Identifier: Apache-2.0
+
 (booleanif (and (httpd_enable_cgi) (nis_enabled))
     (true
         (allow httpd_script_type net_conf_t (dir (ioctl read getattr lock open search)))

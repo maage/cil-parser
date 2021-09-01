@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2021 Erik Rose
+#
+# SPDX-License-Identifier: MIT
+
 from parsimonious.utils import StrAndRepr as StrAndRepr
 from typing import Any, Optional
 

@@ -1,3 +1,7 @@
+; SPDX-FileCopyrightText: 2021 Markus Linnala <markus.linnala@cybercom.com>
+;
+; SPDX-License-Identifier: Apache-2.0
+
 (typeattribute authlogin_typeattr_3)
 (typeattributeset authlogin_typeattr_3 (not (can_relabelto_shadow_passwords ) ))
 (typeattribute authlogin_typeattr_2)

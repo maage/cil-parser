@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2021 Markus Linnala <markus.linnala@cybercom.com>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 PROG := ./simple-cil-parser.py
 
 DESTDIR ?=

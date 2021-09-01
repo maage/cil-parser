@@ -1,15 +1,25 @@
+# SPDX-FileCopyrightText: 2021 Markus Linnala <markus.linnala@cybercom.com>
+#
+# SPDX-License-Identifier: CC0-1.0
+
 *.pp
 .*.swp
 #
-*.egg-info/
-.tox/
-export/
-sl/
-tmp/
+/*.egg-info/
+/.tox/
+/export/
+/sl/
+/tmp/
 #
-test/local_*.cil
-test/local_*.log
-test/test*.cil
+/test/local_*.cil
+/test/local_*.log
+/test/test*.cil
 #
-dupes.txt
-status.txt
+/dupes.txt
+/status.txt
+/test/test1.fc
+/test/test1.if
+/test/test2.fc
+/test/test2.if
+/test/testmodule.fc
+/test/testmodule.if
