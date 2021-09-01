@@ -179,7 +179,7 @@ handle_if() {
     local line=
     local -i changes=0
     local -i lineno=0
-    local state=out
+    local state="out"
     local ptypes=()
     local ifa=
     local todel=()
@@ -207,7 +207,7 @@ handle_if() {
 
         if [[ "$state" == "out" ]]; then
             if [ "$line" == "## <summary>" ]; then
-                state=in
+                state="in"
             elif [[ "$line" =~ ^##\ \<param ]]; then
                 printf "ERROR(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
@@ -233,7 +233,7 @@ handle_if() {
             elif [[ "$line" =~ ^interface\(\`[^\']*\' ]]; then
                 ifa="${line#interface(\`}"
                 ifa="${ifa%%\'*}"
-                state=out
+                state="out"
                 case "$ifa" in
                     selinux_labeled_boolean) ;;
                     *) skip=0 ;;
@@ -634,7 +634,7 @@ handle_te() {
                 exit 1
             fi
             check_depth state depth a lineno line
-        elif [ "$line" = "}" ]; then
+        elif [ "$line" == "}" ]; then
             if (( depth == 0 )); then
                 printf "${state[$depth]:-} depth < 0: error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
@@ -693,7 +693,7 @@ handle_te() {
             :
         elif [[ "$line" =~ ^# ]]; then
             :
-        elif [ "${state[$depth]}" = "true" ]; then
+        elif [ "${state[$depth]}" == "true" ]; then
             if [[ "$line" =~ ^(attribute_role|attribute|bool|class|roleattribute|role|typealias|typeattribute|type)\  ]]; then
                 # definitions skipped
                 :
@@ -719,7 +719,7 @@ handle_te() {
                 printf "${state[$depth]:-} unk error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-        elif [ "${state[$depth]}" = "false" ]; then
+        elif [ "${state[$depth]}" == "false" ]; then
             :
         else
             printf "${state[$depth]:-} unk error(%s:%d): %s\n" "$a" "$lineno" "$line"
