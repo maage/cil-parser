@@ -312,6 +312,7 @@ handle_if() {
 }
 
 pop_state() {
+    # shellcheck disable=SC2034 # it does not currently handle namerefs
     local -n struct_="$1"; shift
     local -n state_="$1"; shift
     local -n branch_="$1"; shift
@@ -323,6 +324,7 @@ pop_state() {
 }
 
 check_depth() {
+    # shellcheck disable=SC2034 # it does not currently handle namerefs
     local -n state_="$1"; shift
     local -n depth_="$1"; shift
     local -n a_="$1"; shift
@@ -335,6 +337,7 @@ check_depth() {
 }
 
 swap_state_branch() {
+    # shellcheck disable=SC2034 # it does not currently handle namerefs
     local -n state_="$1"; shift
     local -n branch_="$1"; shift
     local -n depth_="$1"; shift
@@ -363,9 +366,9 @@ handle_te() {
     # depth increases if we go inside of ( or { and decreases if ) or }
     local -i depth=0
     # if state is true, then print, if false, not
-    local state=(true)
+    local state=("true")
     # this represents other branch value in if then else or similar structures
-    local branch=(true)
+    local branch=("true")
     # type of structure we are currently in, "", {}, ()
     local struct=("")
     # KLUDGE: add some defaults too:
@@ -451,18 +454,18 @@ handle_te() {
             if [[ "$line" =~ ^ifdef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|init_systemd|targeted_policy)\',\ *\`$ ]]; then
                 # define true, value true
                 state["$depth"]="${state[$(((depth-1)))]}"
-                branch["$depth"]=false
+                branch["$depth"]="false"
             elif [[ "$line" =~ ^ifdef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|enable_ubac|TODO)\',\ *\`$ ]]; then
                 # define false, value false
-                state["$depth"]=false
+                state["$depth"]="false"
                 branch["$depth"]="${state[$(((depth-1)))]}"
             elif [[ "$line" =~ ^ifndef\(\`(distro_debian|distro_gentoo|distro_rhel4|distro_suse|distro_ubuntu|direct_sysadm_daemon|enable_mls|enable_ubac|TODO)\',\ *\`$ ]]; then
                 # define false, value true
                 state["$depth"]="${state[$(((depth-1)))]}"
-                branch["$depth"]=false
+                branch["$depth"]="false"
             elif [[ "$line" =~ ^ifndef\(\`(distro_redhat|enable_mcs|hide_broken_symptoms|init_systemd|targeted_policy)\',\ *\`$ ]]; then
                 # define true, value false
-                state["$depth"]=false
+                state["$depth"]="false"
                 branch["$depth"]="${state[$(((depth-1)))]}"
             elif [[ "$line" =~ ^ifdef\(\`[^\)]*\',\ *\`define\([^\)]*\)\'\)$ ]]; then
                 # immediately back depth
@@ -478,11 +481,11 @@ handle_te() {
                         if [ "$value" == "true" ]; then
                             # define true, value true
                             state["$depth"]="${state[$(((depth-1)))]}"
-                            branch["$depth"]=false
+                            branch["$depth"]="false"
                             kv_found=1
                         elif [ "$value" == "false" ]; then
                             # define true, value false
-                            state["$depth"]=false
+                            state["$depth"]="false"
                             branch["$depth"]="${state[$(((depth-1)))]}"
                             kv_found=1
                         fi
@@ -494,13 +497,13 @@ handle_te() {
                     if [ "$value" ]; then
                         if [ "$value" == "true" ]; then
                             # define false, value true
-                            state["$depth"]=false
+                            state["$depth"]="false"
                             branch["$depth"]="${state[$(((depth-1)))]}"
                             kv_found=1
                         elif [ "$value" == "false" ]; then
                             # define false, value false
                             state["$depth"]="${state[$(((depth-1)))]}"
-                            branch["$depth"]=false
+                            branch["$depth"]="false"
                             kv_found=1
                         fi
                     fi
@@ -524,7 +527,7 @@ handle_te() {
         elif [[ "$line" =~ ^require\ *\{$ ]]; then
             (( depth++ )) || :
             struct["$depth"]="{}"
-            state["$depth"]=false
+            state["$depth"]="false"
             branch["$depth"]="${state[$(((depth-1)))]}"
             check_depth state depth a lineno line
         elif [[ "$line" =~ ^if\ *\([^\)]*\)\ *\{$ ]]; then
@@ -620,10 +623,11 @@ handle_te() {
             if [ "$value" == "true" ]; then
                 # define true, value true
                 state["$depth"]="${state[$(((depth-1)))]}"
-                branch["$depth"]=false
+                branch["$depth"]="false"
             elif [ "$value" == "false" ]; then
                 # define true, value false
-                state["$depth"]=false
+                state["$depth"]="false"
+                # shellcheck disable=SC2034 # this is false positive, branch clearly is used
                 branch["$depth"]="${state[$(((depth-1)))]}"
             else
                 printf "${state[$depth]:-} if value error(%s:%d): %s\n" "$a" "$lineno" "$line"
@@ -689,7 +693,7 @@ handle_te() {
             :
         elif [[ "$line" =~ ^# ]]; then
             :
-        elif [ "${state[$depth]}" = true ]; then
+        elif [ "${state[$depth]}" = "true" ]; then
             if [[ "$line" =~ ^(attribute_role|attribute|bool|class|roleattribute|role|typealias|typeattribute|type)\  ]]; then
                 # definitions skipped
                 :
@@ -715,7 +719,7 @@ handle_te() {
                 printf "${state[$depth]:-} unk error(%s:%d): %s\n" "$a" "$lineno" "$line"
                 exit 1
             fi
-        elif [ "${state[$depth]}" = false ]; then
+        elif [ "${state[$depth]}" = "false" ]; then
             :
         else
             printf "${state[$depth]:-} unk error(%s:%d): %s\n" "$a" "$lineno" "$line"
