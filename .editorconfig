@@ -12,31 +12,17 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 charset = utf-8
 
-[*.{eyaml,yaml,toml}]
+[*.{eyaml,toml,yaml,yml}]
 indent_style = space
 indent_size = 2
 
 [Makefile]
 indent_style = tab
 
-# sh
 [*.sh]
 indent_size = 4
 indent_style = space
 
-[{my-bwrap,my-jobs}**]
-indent_size = 4
-indent_style = space
-
-[{rpm-keys-cleanup}]
-indent_size = 4
-indent_style = space
-
-# pl
 [*.pl]
-indent_size = 4
-indent_style = space
-
-[{check-rpm-sigs}]
 indent_size = 4
 indent_style = space
