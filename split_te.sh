@@ -242,6 +242,14 @@ handle_if() {
                     selinux_labeled_boolean) ;;
                     *) skip=0 ;;
                 esac
+            elif [[ "$line" =~ ^template\(\`[^\']*\' ]]; then
+                ifa="${line#template(\`}"
+                ifa="${ifa%%\'*}"
+                state="out"
+                case "$ifa" in
+                    selinux_labeled_boolean) ;;
+                    *) skip=0 ;;
+                esac
             elif [[ "$line" =~ ^##\ \<summary\> ]]; then
                 ptypes=()
                 ifa=
@@ -274,6 +282,7 @@ handle_if() {
                 role_prefix) requiresa+=("role user_r;"); params+=("user") ;;
                 userdomain_prefix) requiresa+=("type user_t;"); params+=("user") ;;
                 domain_prefix) requiresa+=("type foo_t;"); params+=("foo") ;;
+                prefix) requiresa+=("type foo_t;"); params+=("foo") ;;
                 tunable|boolean) params+=("foo_tunable") ;;
                 range) params+=("s0 - s0") ;;
                 filename|file|name) params+=('"foo"') ;;
@@ -299,7 +308,8 @@ handle_if() {
         fi
         ptypes=()
         ifa=
-    done < <(sed -r 's/^[[:space:]]*(interface|## <param name=|## <summary)(.*)/\1\2/;t a;s/.*//;:a' "$a")
+        # This prints out only selected lines as is, and rest as empty lines. Speeds up parsing.
+    done < <(sed -r 's/^[[:space:]]*(interface|template|## <param name=|## <summary)(.*)/\1\2/;t a;s/.*//;:a' "$a")
 
     if (( changes + ${#old_files[@]} )); then
         # If any of the files change, then we need to be sure there is no leftovers of old files
