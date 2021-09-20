@@ -33,6 +33,15 @@ make_refpolicy() {
 
 if [ ! -f "$DESTDIR"/usr/share/selinux/devel/Makefile ]; then
     pushd "$D"
+
+case "$DESTDIR" in
+
+    */fedora-selinux-policy)
+    # Fedora selinux-policy has already good build.conf so no need to
+    # fix it again.
+    ;;
+
+    *)
     sed -ri '
 s/^[# ]*?(TYPE *=).*/\1 mcs/;
 s/^[# ]*?(NAME *=).*/\1 targeted/;
@@ -47,6 +56,9 @@ s/^[# ]*?(WERROR *=).*/\1 y/;
     if [ -f Changelog.contrib ]; then
         make_refpolicy conf
     fi
+    ;;
+esac
+
     make_refpolicy -j"$(nproc)" load
     make_refpolicy NAME=devel install-headers
     cp /usr/share/selinux/devel/Makefile "$DESTDIR"/usr/share/selinux/devel/Makefile
