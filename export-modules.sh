@@ -24,9 +24,7 @@ sudo chown -R "$USER": export
 pushd export/tmp
 for a in *.cil; do
     [ -f "$a" ] || continue
-    if [ -f ../"$a" ] && cmp -s "$a" ../"$a"; then
-        :
-    else
+    if [ ! -f ../"$a" ] || ! cmp -s "$a" ../"$a"; then
         mv -- "$a" ..
     fi
 done
