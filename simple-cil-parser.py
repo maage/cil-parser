@@ -241,7 +241,7 @@ class TASet:
             "file": self.file,
             "string": self.string,
             "type": self.type,
-            "attrs": " ".join(self.attrs),
+            "attrs": " ".join(sorted(self.attrs)),
             "is_logical": self.is_logical,
             "optional": " ".join(self.optional),
             "booleanvalue": bool_to_str10(self.booleanvalue),
