@@ -35,13 +35,14 @@ from typing import (
     # Counter,
     Dict,
     DefaultDict,
+    FrozenSet,
     # Generator,
     # Iterator,
     List,
     # Mapping,
     # NewType,
     Optional,
-    # Sequence,
+    Sequence,
     Set,
     # TextIO,
     Tuple,
@@ -140,15 +141,17 @@ class Quad(Enum):
 QuadType = Union[Quad, bool]
 
 
-def bool_to_str10(lst: List[bool]) -> str:
+def bool_to_str10(lst: Sequence[bool]) -> str:
     return " ".join(str(a * 1) for a in lst)
 
 
-def str10_to_bool(s: str) -> List[bool]:
-    return [a == "1" for a in s.split(" ")]
+def str10_to_bool(s: str) -> Sequence[bool]:
+    return tuple(a == "1" for a in s.split(" "))
 
 
-def expr_to_str(e: CilExpression, optional: List[str], booleanvalue: List[bool]) -> str:
+def expr_to_str(
+    e: CilExpression, optional: Sequence[str], booleanvalue: Sequence[bool]
+) -> str:
     rstring = []
     bi = -1
     for o in optional:
@@ -162,7 +165,7 @@ def expr_to_str(e: CilExpression, optional: List[str], booleanvalue: List[bool])
 
 
 # type enforcement rule
-@dataclass
+@dataclass(frozen=True)
 class TERule:
     file: str
     string: str
@@ -170,9 +173,9 @@ class TERule:
     source: str
     target: str
     klass: str
-    perms: List[str] = field(default_factory=list)
-    optional: List[str] = field(default_factory=list)
-    booleanvalue: List[bool] = field(default_factory=list)
+    perms: Sequence[str] = field(default_factory=list)
+    optional: Sequence[str] = field(default_factory=list)
+    booleanvalue: Sequence[bool] = field(default_factory=list)
 
     def sqldict(self) -> Dict[str, str]:
         return {
@@ -223,15 +226,15 @@ class TERule:
 
 
 # type attribute set
-@dataclass
+@dataclass(frozen=True)
 class TASet:
     file: str
     string: str
     type: str
-    attrs: set[str] = field(default_factory=set)
+    attrs: FrozenSet[str] = field(default_factory=FrozenSet)
     is_logical: bool = False
-    optional: List[str] = field(default_factory=list)
-    booleanvalue: List[bool] = field(default_factory=list)
+    optional: Sequence[str] = field(default_factory=Sequence)
+    booleanvalue: Sequence[bool] = field(default_factory=Sequence)
 
     def sqldict(self) -> Dict[str, Union[str, bool]]:
         return {
@@ -250,30 +253,36 @@ class TASet:
             res["file"],
             res["string"],
             res["type"],
-            res["attrs"].split(" "),
+            frozenset(res["attrs"].split(" ")),
             res["is_logical"],
-            res["optional"].split(" "),
+            tuple(res["optional"].split(" ")),
             str10_to_bool(res["booleanvalue"]),
         )
 
     @classmethod
     def fromexpr(
-        cls, e: CilExpression, file: str, optional: List[str], booleanvalue: List[bool]
+        cls,
+        e: CilExpression,
+        file: str,
+        optional: Sequence[str],
+        booleanvalue: Sequence[bool],
     ) -> "TASet":
-        assert isinstance(e, list)
+        assert isinstance(e, Sequence)
         assert len(e) == 3
         assert isinstance(e[0], str)
         assert isinstance(e[1], str)
-        assert isinstance(e[2], list)
+        assert isinstance(e[2], Sequence)
         rstring = expr_to_str(e, optional, booleanvalue)
         if e[2][0] in ("and", "not", "or"):
-            return TASet(file, rstring, e[1], set(), True, optional, booleanvalue)
+            return TASet(file, rstring, e[1], frozenset(), True, optional, booleanvalue)
         for _ in e[2]:
             assert isinstance(_, str)
-        return TASet(file, rstring, e[1], set(e[2]), False, optional, booleanvalue)
+        return TASet(
+            file, rstring, e[1], frozenset(e[2]), False, optional, booleanvalue
+        )
 
 
-@dataclass
+@dataclass(frozen=True)
 class Typetransition:
     file: str
     string: str
@@ -282,8 +291,8 @@ class Typetransition:
     klass: str
     target: str
     filename: Optional[str] = None
-    optional: List[str] = field(default_factory=list)
-    booleanvalue: List[bool] = field(default_factory=list)
+    optional: Sequence[str] = field(default_factory=list)
+    booleanvalue: Sequence[bool] = field(default_factory=list)
 
     def sqldict(self) -> Dict[str, Optional[str]]:
         return {
@@ -314,7 +323,11 @@ class Typetransition:
 
     @classmethod
     def fromexpr(
-        cls, e: CilExpression, file: str, optional: List[str], booleanvalue: List[bool]
+        cls,
+        e: CilExpression,
+        file: str,
+        optional: Sequence[str],
+        booleanvalue: Sequence[bool],
     ) -> "Typetransition":
         assert isinstance(e, list)
         assert len(e) >= 5
@@ -857,7 +870,7 @@ class CilSearcher:
 
     def search_terule(
         self, seen: Optional[set[str]] = None
-    ) -> Tuple[bool, bool, Set[str]]:
+    ) -> Tuple[bool, bool, FrozenSet[str]]:
         assert self.cur is not None
         got_all = True
         got_any = False
@@ -901,7 +914,7 @@ class CilSearcher:
                 else:
                     got_any = True
                 print(f"{r.file}:{r.string}")
-            return got_all, got_any, missing_perms
+            return got_all, got_any, frozenset(missing_perms)
         finally:
             for t in tables:
                 self.cur.execute(f"DROP TABLE {t}")
