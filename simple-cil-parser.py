@@ -4,6 +4,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# pylint: disable=too-many-lines
+
 import argparse
 from collections import defaultdict
 import copy
@@ -527,6 +529,7 @@ class CilSearcher:
             for tt in res[2]:
                 typetransitions.append(tt.sqldict())
 
+            # pylint: disable=line-too-long
             self.cur.execute(
                 """
                 DELETE FROM te_rules
@@ -601,6 +604,7 @@ class CilSearcher:
     def handle_file(
         self, queue: List[Any], file1: str, op: List[Any], bv: List[bool]
     ) -> ParsedCil:
+        # pylint: disable=too-many-locals
         seen: set[str] = set()
 
         te_rules: List["TERule"] = []
@@ -694,10 +698,12 @@ class CilSearcher:
                 "userrole",
             ]:
                 # TODO: We do not know what to do, so skip
+                # pylint: disable=pointless-statement
                 None
             elif e[0] == "boolean":
                 # ['boolean', 'name', 'false']
                 # TODO: We do not know what to do, so skip
+                # pylint: disable=pointless-statement
                 None
             else:
                 # Unknown operand, give error, it probably needs to be added to above
@@ -784,7 +790,7 @@ class CilSearcher:
             self.search_terule()
 
     def search_from(self) -> None:
-        # pylint: disable=too-many-branches, too-many-statements
+        # pylint: disable=too-many-branches, too-many-statements, too-many-locals
         assert self.cil_from is not None
         seen: set[str] = set()
         te_rules, _, typetransitions = self.cil_from
