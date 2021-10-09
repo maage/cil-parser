@@ -693,11 +693,14 @@ class CilSearcher:
                 "userrange",
                 "userrole",
             ]:
+                # TODO: We do not know what to do, so skip
                 None
             elif e[0] == "boolean":
                 # ['boolean', 'name', 'false']
+                # TODO: We do not know what to do, so skip
                 None
             else:
+                # Unknown operand, give error, it probably needs to be added to above
                 print(e)
                 sys.exit(1)
 
@@ -784,7 +787,7 @@ class CilSearcher:
         # pylint: disable=too-many-branches, too-many-statements
         assert self.cil_from is not None
         seen: set[str] = set()
-        te_rules, typeattributes, typetransitions = self.cil_from
+        te_rules, _, typetransitions = self.cil_from
         for r in te_rules:
             self.oargs["type"] = r.type
             self.oargs["source"] = r.source
