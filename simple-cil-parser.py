@@ -686,6 +686,7 @@ class CilSearcher:
                 "typeattribute",
                 "typechange",
                 "typemember",
+                "typepermissive",
                 "user",
                 "userlevel",
                 "userprefix",
