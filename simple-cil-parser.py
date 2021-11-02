@@ -966,8 +966,8 @@ class CilSearcher:
                         result.update(tas)
         if "target" in self.vargs and self.vargs["target"] is not None:
             for s in self.vargs["target"]:
-                if s in self.tasets:
-                    tas = self.tasets[s]
+                if s in self.reverse_tasets:
+                    tas = self.reverse_tasets[self.args.target]
                     if tas is not None:
                         result.update(tas)
         for r in result:
