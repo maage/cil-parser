@@ -667,6 +667,7 @@ class CilSearcher:
                 tt = Typetransition.fromexpr(e, file1, op, bv)
                 typetransitions.append(tt)
             elif e[0] in [
+                "allowx",
                 "category",
                 "categoryorder",
                 "class",
