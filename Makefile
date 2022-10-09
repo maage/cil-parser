@@ -38,7 +38,7 @@ parsimonious-install:
 	pip3 install --upgrade --user parsimonious
 
 parsimonious-stubgen:
-	.tox/mypy/bin/stubgen -o . ~/.local/lib/python3.9/site-packages/parsimonious/*.py
+	.tox/mypy/bin/stubgen -o . ~/.local/lib/python3.11/site-packages/parsimonious/*.py
 
 myclean: clean
 	rm -f -- $(parsed_tests) status.txt dupes.txt
